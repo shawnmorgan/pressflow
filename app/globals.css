@@ -1,0 +1,106 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-inter), 'Inter Fallback', -apple-system, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), 'Geist Mono Fallback', monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-canvas: var(--canvas);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-amber: var(--amber);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+}
+
+:root {
+  --background: #f9fafb;
+  --foreground: #1d2327;
+  --card: #ffffff;
+  --card-foreground: #1d2327;
+  --popover: #ffffff;
+  --popover-foreground: #1d2327;
+  --primary: #3858e9;
+  --primary-hover: #1d35b4;
+  --primary-foreground: #ffffff;
+  --secondary: #ffffff;
+  --secondary-foreground: #1d2327;
+  --muted: #f0f0f1;
+  --muted-foreground: #646970;
+  --accent: #2271b1;
+  --accent-foreground: #ffffff;
+  --amber: #b26200;
+  --border: #e0e0e0;
+  --input: #e0e0e0;
+  --ring: #3858e9;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1d2327;
+  --sidebar-border: #e0e0e0;
+  --radius: 2px;
+  --canvas: #e8eaed;
+  --dot-color: rgba(29, 35, 39, 0.18);
+}
+
+.dark {
+  --background: #0d0f13;
+  --foreground: #e7e9ee;
+  --card: #15181e;
+  --card-foreground: #e7e9ee;
+  --popover: #15181e;
+  --popover-foreground: #e7e9ee;
+  --primary: #5a74ee;
+  --primary-hover: #7088f2;
+  --primary-foreground: #ffffff;
+  --secondary: #15181e;
+  --secondary-foreground: #e7e9ee;
+  --muted: #1d2129;
+  --muted-foreground: #9097a1;
+  --accent: #4a9fd8;
+  --accent-foreground: #0d0f13;
+  --amber: #e6a93b;
+  --border: #282d36;
+  --input: #282d36;
+  --ring: #5a74ee;
+  --sidebar: #15181e;
+  --sidebar-foreground: #e7e9ee;
+  --sidebar-border: #282d36;
+  --canvas: #0d0f13;
+  --dot-color: rgba(231, 233, 238, 0.16);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    font-family: var(--font-inter), 'Inter Fallback', -apple-system, system-ui,
+      sans-serif;
+  }
+}
