@@ -103,9 +103,11 @@ export function InfiniteCanvas({
   }, [])
 
   const startPan = (e: React.MouseEvent) => {
-    // Pan when dragging the background, or anywhere while holding space.
-    const onBackground = e.target === e.currentTarget
-    if (!onBackground && !spaceDown) return
+    // Pan when holding space, or when dragging a non-interactive element.
+    const el = e.target as HTMLElement
+    const isInteractive =
+      el.closest('button, a, input, textarea, select, [role="button"], [contenteditable="true"]') !== null
+    if (!spaceDown && isInteractive) return
     pan.current = { sx: e.clientX, sy: e.clientY, ox: t.x, oy: t.y }
     setPanning(true)
   }
