@@ -41,7 +41,7 @@ function dbPageToPage(row: DbPage): Page {
 }
 
 export function Workspace({ projectId }: { projectId: string }) {
-  const [view, setView] = useState<CanvasView>('Style')
+  const [view, setView] = useState<CanvasView>('Project')
   const [shareOpen, setShareOpen] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(false)
 

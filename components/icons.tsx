@@ -363,6 +363,24 @@ export function Package(props: IconProps) {
   )
 }
 
+export function Library(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+    </svg>
+  )
+}
+
+export function LogOut(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  )
+}
+
 export function Trash(props: IconProps) {
   return (
     <svg {...base(props)} aria-hidden="true">

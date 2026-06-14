@@ -3,11 +3,10 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ThemeToggle } from '@/components/theme-toggle'
+import { AccountMenu } from '@/components/account-menu'
 import {
   Plus,
   Plug,
-  User,
   Sparkles,
   FileCode,
   Layers,
@@ -19,7 +18,6 @@ import {
 } from '@/components/icons'
 import { type ProjectSummary } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/lib/auth-context'
 
 type StartingPoint = 'import' | 'mcp' | 'defaults'
 
@@ -50,7 +48,6 @@ const START_OPTIONS: {
 ]
 
 export function ProjectsDashboard() {
-  const { signOut } = useAuth()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ProjectSummary | null>(null)
@@ -98,14 +95,7 @@ export function ProjectsDashboard() {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <ThemeToggle />
-          <Link
-            href="/account"
-            aria-label="Account"
-            className="flex size-8 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-          >
-            <User className="size-4" />
-          </Link>
+          <AccountMenu />
         </div>
       </header>
 

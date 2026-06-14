@@ -1,15 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { Check, User, Heading } from '@/components/icons'
+import { Check, Heading } from '@/components/icons'
 import { ProjectSwitcher } from '@/components/project-switcher'
 import { ViewTabs, type CanvasView } from '@/components/canvas/view-tabs'
+import { AccountMenu } from '@/components/account-menu'
 
-/**
- * Top chrome bar. Carries the project switcher (left), the main view switcher
- * centered (Project Settings | Style…Mockup | Client View), and save status +
- * account chrome (right). Connections and Settings live inside the Account page.
- */
 export function Topbar({
   view,
   onViewChange,
@@ -44,13 +40,7 @@ export function Topbar({
         >
           <Heading className="size-4" />
         </Link>
-        <Link
-          href="/account"
-          aria-label="Account"
-          className="flex size-8 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-        >
-          <User className="size-4" />
-        </Link>
+        <AccountMenu />
       </div>
     </header>
   )
