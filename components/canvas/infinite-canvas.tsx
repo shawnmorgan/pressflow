@@ -103,11 +103,15 @@ export function InfiniteCanvas({
   }, [])
 
   const startPan = (e: React.MouseEvent) => {
-    // Pan when holding space, or when dragging a non-interactive element.
+    // Always pan when holding space.
+    if (spaceDown) {
+      pan.current = { sx: e.clientX, sy: e.clientY, ox: t.x, oy: t.y }
+      setPanning(true)
+      return
+    }
+    // Pan from any click that isn't inside a frame's content area.
     const el = e.target as HTMLElement
-    const isInteractive =
-      el.closest('button, a, input, textarea, select, [role="button"], [contenteditable="true"]') !== null
-    if (!spaceDown && isInteractive) return
+    if (el.closest('[data-frame-content]')) return
     pan.current = { sx: e.clientX, sy: e.clientY, ox: t.x, oy: t.y }
     setPanning(true)
   }

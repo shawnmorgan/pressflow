@@ -43,7 +43,7 @@ export function Frame({
         </button>
         {headerRight}
       </div>
-      <div className="min-h-0 flex-1">{children}</div>
+      <div data-frame-content className="min-h-0 flex-1">{children}</div>
     </div>
   )
 }
