@@ -4,7 +4,16 @@ import { useRef, useState, type ReactNode } from 'react'
 import { InfiniteCanvas } from '@/components/canvas/infinite-canvas'
 import { Frame } from '@/components/canvas/frame'
 import { Popover } from '@/components/canvas/popover'
-import { StyleFrame, type EditorKey } from '@/components/style/style-frame'
+import {
+  ColorPaletteFrame,
+  TypeFrame,
+  LinksFrame,
+  SpacingFrame,
+  BorderFrame,
+  ShadowsFrame,
+  SectionStylesFrame,
+  type EditorKey,
+} from '@/components/style/style-frame'
 import {
   ColorsEditor,
   TypographyEditor,
@@ -45,25 +54,42 @@ export function StyleView({ ds, setDs }: Props) {
 
   const open = (key: EditorKey, el: HTMLElement) => {
     anchorRef.current = el
-    // Toggle off if the same region is clicked again.
     setOpenKey((prev) => (prev === key ? null : key))
   }
 
   const editor = openKey ? EDITORS[openKey] : null
 
+  const frameProps = { ds, active: openKey, onOpen: open }
+
   return (
     <InfiniteCanvas>
-      <div className="p-24 pl-32">
-        <Frame
-          title="Global Style"
-          width={760}
-          badge={
-            <span className="rounded-sm border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              Live · one locked style
-            </span>
-          }
-        >
-          <StyleFrame ds={ds} active={openKey} onOpen={open} />
+      <div className="flex flex-wrap items-start gap-6 p-24 pl-32">
+        <Frame title="Color Palette" width={760}>
+          <ColorPaletteFrame {...frameProps} />
+        </Frame>
+
+        <Frame title="Typography" width={760}>
+          <TypeFrame {...frameProps} />
+        </Frame>
+
+        <Frame title="Links & Buttons" width={760}>
+          <LinksFrame {...frameProps} />
+        </Frame>
+
+        <Frame title="Spacing & Layout" width={760}>
+          <SpacingFrame {...frameProps} />
+        </Frame>
+
+        <Frame title="Border Radius" width={400}>
+          <BorderFrame {...frameProps} />
+        </Frame>
+
+        <Frame title="Shadows" width={500}>
+          <ShadowsFrame {...frameProps} />
+        </Frame>
+
+        <Frame title="Section Styles" width={760}>
+          <SectionStylesFrame {...frameProps} />
         </Frame>
       </div>
 

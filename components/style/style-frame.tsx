@@ -29,6 +29,12 @@ export type EditorKey =
 
 type OpenFn = (key: EditorKey, anchor: HTMLElement) => void
 
+type FrameProps = {
+  ds: DesignSystem
+  active: EditorKey | null
+  onOpen: OpenFn
+}
+
 function PreviewLabel({ children, color }: { children: ReactNode; color: string }) {
   return (
     <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color }}>
@@ -37,7 +43,6 @@ function PreviewLabel({ children, color }: { children: ReactNode; color: string 
   )
 }
 
-/** A clickable section of the stylesheet — opens its editor popover. */
 function Region({
   k,
   label,
@@ -86,34 +91,28 @@ function Region({
   )
 }
 
-export function StyleFrame({
-  ds,
-  active,
-  onOpen,
-}: {
-  ds: DesignSystem
-  active: EditorKey | null
-  onOpen: OpenFn
-}) {
+function getStyleVars(ds: DesignSystem) {
   const pal = applyAutoDerive(ds.palette)
   const fonts = ds.fontSet
   const c = pal.colors
+  return {
+    pal,
+    c,
+    surface: c.base,
+    text: c.contrast,
+    muted: c.baseAccent,
+    hairline: c.borderLight,
+    bodyFont: fontStack(fonts.primary),
+    headFont: fontStack(fonts.heading),
+  }
+}
 
-  const surface = c.base
-  const text = c.contrast
-  const muted = c.baseAccent
-  const hairline = c.borderLight
-
-  const bodyFont = fontStack(fonts.primary)
-  const headFont = fontStack(fonts.heading)
+export function ColorPaletteFrame({ ds, active, onOpen }: FrameProps) {
+  const { c, surface, text, muted, hairline } = getStyleVars(ds)
 
   return (
     <div style={{ backgroundColor: surface }}>
-      <div
-        className="flex flex-col gap-2 px-5 py-5"
-        style={{ fontFamily: bodyFont, color: text }}
-      >
-        {/* Palette by role */}
+      <div className="px-5 py-5" style={{ color: text }}>
         <Region k="colors" label="Palette · by role" color={muted} active={active} onOpen={onOpen}>
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
             {COLOR_ROLES.map((role) => (
@@ -137,8 +136,17 @@ export function StyleFrame({
             ))}
           </div>
         </Region>
+      </div>
+    </div>
+  )
+}
 
-        {/* Fluid type ramp */}
+export function TypeFrame({ ds, active, onOpen }: FrameProps) {
+  const { c, surface, text, muted, bodyFont, headFont } = getStyleVars(ds)
+
+  return (
+    <div style={{ backgroundColor: surface }}>
+      <div className="flex flex-col gap-2 px-5 py-5" style={{ fontFamily: bodyFont, color: text }}>
         <Region k="typography" label="Fluid type scale" color={muted} active={active} onOpen={onOpen}>
           <div className="flex flex-col gap-3">
             {ds.typography.sizes.map((s) => (
@@ -160,7 +168,6 @@ export function StyleFrame({
           </div>
         </Region>
 
-        {/* Heading ramp */}
         <Region k="headings" label="Headings" color={muted} active={active} onOpen={onOpen}>
           <div className="flex flex-col gap-3">
             {ds.headings.map((h) => {
@@ -189,8 +196,17 @@ export function StyleFrame({
             })}
           </div>
         </Region>
+      </div>
+    </div>
+  )
+}
 
-        {/* Buttons: variations × states */}
+export function LinksFrame({ ds, active, onOpen }: FrameProps) {
+  const { pal, surface, text, muted, bodyFont } = getStyleVars(ds)
+
+  return (
+    <div style={{ backgroundColor: surface }}>
+      <div className="flex flex-col gap-2 px-5 py-5" style={{ fontFamily: bodyFont, color: text }}>
         <Region k="buttons" label="Buttons · variations × states" color={muted} active={active} onOpen={onOpen}>
           <div className="flex flex-col gap-5">
             {ds.buttonVariations.map((bv) => (
@@ -199,7 +215,17 @@ export function StyleFrame({
           </div>
         </Region>
 
-        {/* Links */}
+        <Region k="buttonVariations" label="Button variations" color={muted} active={active} onOpen={onOpen}>
+          <div className="flex flex-wrap gap-3">
+            {ds.buttonVariations.map((bv) => (
+              <span key={bv.id} className="text-[11px]" style={{ color: muted }}>
+                {bv.name}
+                {bv.id !== ds.buttonVariations[ds.buttonVariations.length - 1].id ? ' ·' : ''}
+              </span>
+            ))}
+          </div>
+        </Region>
+
         <Region k="links" label="Links" color={muted} active={active} onOpen={onOpen}>
           <p className="text-[15px] leading-relaxed" style={{ fontFamily: bodyFont, color: text }}>
             Body text with an{' '}
@@ -219,8 +245,17 @@ export function StyleFrame({
             .
           </p>
         </Region>
+      </div>
+    </div>
+  )
+}
 
-        {/* Spacing */}
+export function SpacingFrame({ ds, active, onOpen }: FrameProps) {
+  const { c, surface, text, muted, bodyFont, hairline } = getStyleVars(ds)
+
+  return (
+    <div style={{ backgroundColor: surface }}>
+      <div className="flex flex-col gap-2 px-5 py-5" style={{ fontFamily: bodyFont, color: text }}>
         <Region k="spacing" label="Spacing scale" color={muted} active={active} onOpen={onOpen}>
           <div className="flex flex-col gap-2">
             {ds.spacing.map((s) => (
@@ -237,44 +272,6 @@ export function StyleFrame({
           </div>
         </Region>
 
-        {/* Radius */}
-        <Region k="radius" label="Border radius" color={muted} active={active} onOpen={onOpen}>
-          <div className="flex flex-wrap gap-4">
-            {ds.radii.map((r) => (
-              <div key={r.key} className="flex flex-col items-center gap-1.5">
-                <span
-                  className="size-12"
-                  style={{ backgroundColor: c.tint, border: `1px solid ${hairline}`, borderRadius: Math.min(r.px, 24) }}
-                />
-                <span className="text-[10px] font-medium" style={{ color: text }}>
-                  {r.name}
-                </span>
-                <span className="text-[10px] tabular-nums" style={{ color: muted }}>
-                  {r.px > 100 ? '∞' : `${r.px}px`}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Region>
-
-        {/* Shadows */}
-        <Region k="shadows" label="Shadows" color={muted} active={active} onOpen={onOpen}>
-          <div className="flex flex-wrap gap-6">
-            {ds.shadows.map((s) => (
-              <div key={s.key} className="flex flex-col items-center gap-2">
-                <span className="size-16 rounded-sm" style={{ backgroundColor: surface, boxShadow: shadowValue(s) }} />
-                <span className="text-[10px] font-medium" style={{ color: text }}>
-                  {s.name}
-                </span>
-                <span className="text-[10px] capitalize" style={{ color: muted }}>
-                  {s.tone}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Region>
-
-        {/* Layout widths */}
         <Region k="layout" label="Layout widths" color={muted} active={active} onOpen={onOpen}>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
@@ -302,20 +299,72 @@ export function StyleFrame({
             </div>
           </div>
         </Region>
+      </div>
+    </div>
+  )
+}
 
-        {/* Button variations */}
-        <Region k="buttonVariations" label="Button variations" color={muted} active={active} onOpen={onOpen}>
-          <div className="flex flex-wrap gap-3">
-            {ds.buttonVariations.map((bv) => (
-              <span key={bv.id} className="text-[11px]" style={{ color: muted }}>
-                {bv.name}
-                {bv.id !== ds.buttonVariations[ds.buttonVariations.length - 1].id ? ' ·' : ''}
-              </span>
+export function BorderFrame({ ds, active, onOpen }: FrameProps) {
+  const { c, surface, text, muted, hairline } = getStyleVars(ds)
+
+  return (
+    <div style={{ backgroundColor: surface }}>
+      <div className="px-5 py-5" style={{ color: text }}>
+        <Region k="radius" label="Border radius" color={muted} active={active} onOpen={onOpen}>
+          <div className="flex flex-wrap gap-4">
+            {ds.radii.map((r) => (
+              <div key={r.key} className="flex flex-col items-center gap-1.5">
+                <span
+                  className="size-12"
+                  style={{ backgroundColor: c.tint, border: `1px solid ${hairline}`, borderRadius: Math.min(r.px, 24) }}
+                />
+                <span className="text-[10px] font-medium" style={{ color: text }}>
+                  {r.name}
+                </span>
+                <span className="text-[10px] tabular-nums" style={{ color: muted }}>
+                  {r.px > 100 ? '∞' : `${r.px}px`}
+                </span>
+              </div>
             ))}
           </div>
         </Region>
+      </div>
+    </div>
+  )
+}
 
-        {/* Section styles */}
+export function ShadowsFrame({ ds, active, onOpen }: FrameProps) {
+  const { surface, text, muted } = getStyleVars(ds)
+
+  return (
+    <div style={{ backgroundColor: surface }}>
+      <div className="px-5 py-5" style={{ color: text }}>
+        <Region k="shadows" label="Shadows" color={muted} active={active} onOpen={onOpen}>
+          <div className="flex flex-wrap gap-6">
+            {ds.shadows.map((s) => (
+              <div key={s.key} className="flex flex-col items-center gap-2">
+                <span className="size-16 rounded-sm" style={{ backgroundColor: surface, boxShadow: shadowValue(s) }} />
+                <span className="text-[10px] font-medium" style={{ color: text }}>
+                  {s.name}
+                </span>
+                <span className="text-[10px] capitalize" style={{ color: muted }}>
+                  {s.tone}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Region>
+      </div>
+    </div>
+  )
+}
+
+export function SectionStylesFrame({ ds, active, onOpen }: FrameProps) {
+  const { pal, surface, text, muted, hairline } = getStyleVars(ds)
+
+  return (
+    <div style={{ backgroundColor: surface }}>
+      <div className="px-5 py-5" style={{ color: text }}>
         <Region k="sectionStyles" label="Section styles" color={muted} active={active} onOpen={onOpen}>
           <div
             className="flex flex-col overflow-hidden rounded-sm"

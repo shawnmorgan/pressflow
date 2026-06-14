@@ -37,7 +37,7 @@ export function AccountMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-52 rounded-sm border border-border bg-popover py-1 shadow-lg">
+        <div className="absolute right-0 top-full z-[70] mt-1.5 w-52 rounded-sm border border-border bg-popover py-1 shadow-lg">
           {/* Theme toggle */}
           <button
             type="button"
