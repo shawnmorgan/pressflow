@@ -8,8 +8,6 @@ import {
   type ColorRoleKey,
   COLOR_ROLES,
   applyAutoDerive,
-  activePalette,
-  activeFontSet,
   fontStack,
   shadowValue,
   sizePx,
@@ -97,8 +95,8 @@ export function StyleFrame({
   active: EditorKey | null
   onOpen: OpenFn
 }) {
-  const pal = applyAutoDerive(activePalette(ds))
-  const fonts = activeFontSet(ds)
+  const pal = applyAutoDerive(ds.palette)
+  const fonts = ds.fontSet
   const c = pal.colors
 
   const surface = c.base

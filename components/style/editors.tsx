@@ -25,8 +25,6 @@ import {
   FONT_FAMILIES,
   FONT_WEIGHTS,
   buildFluidSizes,
-  activePalette,
-  activeFontSet,
   applyAutoDerive,
   shadowValue,
   makeId,
@@ -73,13 +71,10 @@ function DeriveToggle({
 }
 
 export function ColorsEditor({ ds, setDs }: Props) {
-  const pal = activePalette(ds)
+  const pal = ds.palette
 
   function patchPalette(mut: (p: Palette) => Palette) {
-    const next = ds.palettes.map((p) =>
-      p.id === pal.id ? applyAutoDerive(mut(p)) : p,
-    )
-    setDs({ ...ds, palettes: next })
+    setDs({ ...ds, palette: applyAutoDerive(mut(ds.palette)) })
   }
   function setColor(key: ColorRoleKey, hex: string) {
     patchPalette((p) => ({ ...p, colors: { ...p.colors, [key]: hex } }))
@@ -260,7 +255,7 @@ function DuotonesSubCard({ ds, setDs }: Props) {
 /* ============================ TYPOGRAPHY ============================ */
 
 export function TypographyEditor({ ds, setDs }: Props) {
-  const fonts = activeFontSet(ds)
+  const fonts = ds.fontSet
 
   function regen(base: number, ratio: number) {
     setDs({ ...ds, typography: { base, ratio, sizes: buildFluidSizes(base, ratio) } })
@@ -275,10 +270,7 @@ export function TypographyEditor({ ds, setDs }: Props) {
     })
   }
   function setFont(field: keyof typeof fonts, v: string) {
-    setDs({
-      ...ds,
-      fontSets: ds.fontSets.map((f) => (f.id === fonts.id ? { ...f, [field]: v } : f)),
-    })
+    setDs({ ...ds, fontSet: { ...fonts, [field]: v } })
   }
 
   return (
@@ -550,7 +542,7 @@ export function LinksEditor({ ds, setDs }: Props) {
 /* ====================== BUTTON VARIATIONS ====================== */
 
 function ButtonStatePreview({ bv, ds }: { bv: ButtonVariation; ds: DesignSystem }) {
-  const p = applyAutoDerive(activePalette(ds))
+  const p = applyAutoDerive(ds.palette)
   return (
     <div className="flex flex-wrap items-end gap-x-5 gap-y-2 rounded-sm border border-border bg-muted/30 px-3 py-3">
       {(['default', 'hover'] as const).map((state) => (
@@ -615,7 +607,7 @@ export function ButtonVariationsEditor({ ds, setDs }: Props) {
 /* ====================== SECTION STYLES ====================== */
 
 export function SectionStylesEditor({ ds, setDs }: Props) {
-  const p = applyAutoDerive(activePalette(ds))
+  const p = applyAutoDerive(ds.palette)
   const buttonOptions = ds.buttonVariations.map((b) => ({ label: b.name, value: b.id }))
 
   function patch(id: string, mut: (s: SectionStyle) => SectionStyle) {

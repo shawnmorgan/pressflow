@@ -4,8 +4,6 @@ import { type CSSProperties } from 'react'
 import { type ClientProject } from '@/lib/client-portal'
 import {
   COLOR_ROLES,
-  activePalette,
-  activeFontSet,
   applyAutoDerive,
   fontStack,
   radiusPx,
@@ -16,8 +14,8 @@ import { FieldLabel, SectionIntro, StatusPill } from '@/components/portal/portal
 
 export function PortalStyleGuide({ project }: { project: ClientProject }) {
   const ds = project.ds
-  const palette = applyAutoDerive(activePalette(ds))
-  const fonts = activeFontSet(ds)
+  const palette = applyAutoDerive(ds.palette)
+  const fonts = ds.fontSet
 
   return (
     <div className="flex flex-col gap-8">

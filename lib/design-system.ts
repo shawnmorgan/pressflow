@@ -565,15 +565,13 @@ export const DEFAULT_SECTION_STYLES: SectionStyle[] = [
 /* ---------- The full design system ---------- */
 
 export type DesignSystem = {
-  palettes: Palette[]
-  activePaletteId: string
+  palette: Palette
   colorStatus: Record<ColorRoleKey, TokenStatus>
   gradients: Gradient[]
   duotones: Duotone[]
 
   typography: Typography
-  fontSets: FontRoleSet[]
-  activeFontSetId: string
+  fontSet: FontRoleSet
 
   headings: Heading[]
 
@@ -608,15 +606,13 @@ const DEFAULT_COLOR_STATUS: Record<ColorRoleKey, TokenStatus> = {
 }
 
 export const DEFAULT_DESIGN_SYSTEM: DesignSystem = {
-  palettes: DEFAULT_PALETTES,
-  activePaletteId: 'pal-royal',
+  palette: DEFAULT_PALETTES[0],
   colorStatus: DEFAULT_COLOR_STATUS,
   gradients: DEFAULT_GRADIENTS,
   duotones: DEFAULT_DUOTONES,
 
   typography: { base: 18, ratio: 1.25, sizes: buildFluidSizes(18, 1.25) },
-  fontSets: DEFAULT_FONT_SETS,
-  activeFontSetId: 'font-modern',
+  fontSet: DEFAULT_FONT_SETS[0],
 
   headings: DEFAULT_HEADINGS,
 
@@ -638,12 +634,6 @@ export const DEFAULT_DESIGN_SYSTEM: DesignSystem = {
 
 /* ---------- Resolvers ---------- */
 
-export function activePalette(ds: DesignSystem): Palette {
-  return ds.palettes.find((p) => p.id === ds.activePaletteId) ?? ds.palettes[0]
-}
-export function activeFontSet(ds: DesignSystem): FontRoleSet {
-  return ds.fontSets.find((f) => f.id === ds.activeFontSetId) ?? ds.fontSets[0]
-}
 export function resolveRole(p: Palette, role: RoleRef): string {
   if (role === 'transparent') return 'transparent'
   return p.colors[role]
@@ -674,7 +664,7 @@ export function clampCss(min: number, preferredVw: number, max: number): string 
 /* ---------- Legacy adapter (keeps Build/Export working) ---------- */
 
 export function toWorkspaceTokens(ds: DesignSystem): WorkspaceTokens {
-  const p = applyAutoDerive(activePalette(ds))
+  const p = applyAutoDerive(ds.palette)
   const colors: ColorSlot[] = [
     { name: 'Primary', hex: p.colors.brand, status: ds.colorStatus.brand },
     { name: 'Surface', hex: p.colors.base, status: ds.colorStatus.base },

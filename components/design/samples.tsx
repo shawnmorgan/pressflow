@@ -8,7 +8,6 @@ import {
   type SectionStyle,
   resolveRole,
   radiusPx,
-  activeFontSet,
   fontStack,
 } from '@/lib/design-system'
 
@@ -33,7 +32,7 @@ export function buttonStyle(
     fontWeight: bv.weight,
     fontSize: bv.fontSize,
     lineHeight: 1,
-    fontFamily: fontStack(activeFontSet(ds).primary),
+    fontFamily: fontStack(ds.fontSet.primary),
     boxShadow: state === 'focus' ? `0 0 0 3px ${resolveRole(p, bv.bgRole)}40` : undefined,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
@@ -118,7 +117,7 @@ export function SectionBand({
   const bv =
     ds.buttonVariations.find((b) => b.id === sec.buttonVariationId) ??
     ds.buttonVariations[0]
-  const fonts = activeFontSet(ds)
+  const fonts = ds.fontSet
   const pad = size === 'sm' ? 16 : 28
 
   return (
