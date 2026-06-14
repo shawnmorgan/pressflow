@@ -46,7 +46,7 @@ export function ProjectSwitcher() {
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-1.5 w-64 rounded-sm border border-border bg-popover py-1 shadow-lg">
+        <div className="absolute left-0 top-full z-[70] mt-1.5 w-64 rounded-sm border border-border bg-popover py-1 shadow-lg">
           <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Projects
           </p>
