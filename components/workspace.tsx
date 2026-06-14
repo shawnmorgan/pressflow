@@ -158,7 +158,7 @@ export function Workspace({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {shareOpen && <ShareModal onClose={() => setShareOpen(false)} />}
+      {shareOpen && <ShareModal onClose={() => setShareOpen(false)} projectId={projectId} />}
       {commentsOpen && <CommentsPane onClose={() => setCommentsOpen(false)} />}
     </div>
     </ToastProvider>

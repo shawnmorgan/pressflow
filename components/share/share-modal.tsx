@@ -11,9 +11,12 @@ const SHARE_OPTIONS: { key: ShareKey; label: string; hint: string }[] = [
   { key: 'wireframe', label: 'Wireframe', hint: 'Styled page previews' },
 ]
 
-const SHARE_URL = 'https://pressflow.app/s/3f9c2a7e'
+function getShareUrl(projectId: string) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${origin}/portal/${projectId}`
+}
 
-export function ShareModal({ onClose }: { onClose: () => void }) {
+export function ShareModal({ onClose, projectId }: { onClose: () => void; projectId: string }) {
   const [selected, setSelected] = useState<Record<ShareKey, boolean>>({
     style: true,
     sitemap: true,
@@ -34,7 +37,7 @@ export function ShareModal({ onClose }: { onClose: () => void }) {
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(SHARE_URL)
+      await navigator.clipboard.writeText(getShareUrl(projectId))
     } catch {
       /* clipboard may be unavailable; still show feedback */
     }
@@ -80,7 +83,7 @@ export function ShareModal({ onClose }: { onClose: () => void }) {
             <div className="flex items-center gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2 rounded-sm border border-border bg-background px-2.5 py-2">
                 <Link className="size-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate text-[12px] text-foreground">{SHARE_URL}</span>
+                <span className="truncate text-[12px] text-foreground">{getShareUrl(projectId)}</span>
               </div>
               <button
                 type="button"
