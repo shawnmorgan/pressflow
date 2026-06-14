@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -17,7 +17,9 @@ import {
   X,
   Check,
 } from '@/components/icons'
-import { DEMO_PROJECTS, type ProjectSummary } from '@/lib/projects'
+import { type ProjectSummary } from '@/lib/projects'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth-context'
 
 type StartingPoint = 'import' | 'mcp' | 'defaults'
 
@@ -48,8 +50,39 @@ const START_OPTIONS: {
 ]
 
 export function ProjectsDashboard() {
-  const [projects] = useState<ProjectSummary[]>(DEMO_PROJECTS)
+  const { signOut } = useAuth()
+  const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [modalOpen, setModalOpen] = useState(false)
+  const [loadingProjects, setLoadingProjects] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase
+        .from('projects')
+        .select('id, name, target, stage, updated_at')
+        .order('updated_at', { ascending: false })
+
+      if (data) {
+        setProjects(
+          data.map((p) => ({
+            id: p.id,
+            name: p.name,
+            target: `${p.target === 'ollie' ? 'Ollie' : p.target} · ${p.stage}`,
+            lastEdited: formatRelative(p.updated_at),
+            palette: [],
+            initials: p.name
+              .split(' ')
+              .map((w: string) => w[0])
+              .join('')
+              .slice(0, 2)
+              .toUpperCase(),
+          })),
+        )
+      }
+      setLoadingProjects(false)
+    }
+    load()
+  }, [])
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
@@ -79,13 +112,14 @@ export function ProjectsDashboard() {
           >
             <Settings className="size-4" />
           </Link>
-          <Link
-            href="/account"
-            aria-label="Account"
+          <button
+            type="button"
+            onClick={signOut}
+            aria-label="Sign out"
             className="flex size-8 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
           >
             <User className="size-4" />
-          </Link>
+          </button>
         </div>
       </header>
 
@@ -151,7 +185,7 @@ export function ProjectsDashboard() {
 function ProjectCard({ project }: { project: ProjectSummary }) {
   return (
     <Link
-      href="/editor"
+      href={`/editor?project=${project.id}`}
       className="group flex min-h-[180px] flex-col rounded-sm border border-border bg-card p-5 transition-colors hover:border-foreground/30"
     >
       <div className="flex items-start justify-between">
@@ -400,4 +434,16 @@ function StepDot({
       </span>
     </span>
   )
+}
+
+function formatRelative(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days === 1) return 'Yesterday'
+  return `${days}d ago`
 }
