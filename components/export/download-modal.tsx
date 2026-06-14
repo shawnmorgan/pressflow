@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import JSZip from 'jszip'
 import { X, Check, FileCode, Package, Layers } from '@/components/icons'
 import { type Page } from '@/lib/sitemap'
-import { type WorkspaceTokens } from '@/lib/tokens'
+import { type DesignSystem } from '@/lib/design-system'
 import { pageMarkup, themeJson } from '@/lib/block-markup'
 import { useToast } from '@/components/ui/toast'
 
 type Props = {
   pages: Page[]
-  tokens: WorkspaceTokens
+  ds: DesignSystem
   onClose: () => void
 }
 
@@ -18,9 +18,9 @@ type Props = {
  * Download modal — choose which files to export and download them. Replaces
  * the former full-screen export view.
  */
-export function DownloadModal({ pages, tokens, onClose }: Props) {
+export function DownloadModal({ pages, ds, onClose }: Props) {
   const { showToast } = useToast()
-  const themeJsonStr = useMemo(() => themeJson(tokens), [tokens])
+  const themeJsonStr = useMemo(() => themeJson(ds), [ds])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()

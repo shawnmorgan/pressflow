@@ -7,7 +7,7 @@ import {
   type SectionType,
   newSection,
 } from '@/lib/sitemap'
-import type { WorkspaceTokens } from '@/lib/tokens'
+import type { DesignSystem } from '@/lib/design-system'
 import { InfiniteCanvas } from '@/components/canvas/infinite-canvas'
 import { Frame } from '@/components/canvas/frame'
 import { TreeLayout } from '@/components/build/tree-layout'
@@ -24,13 +24,13 @@ type SubView = 'sitemap' | 'wireframe'
 type Props = {
   pages: Page[]
   setPages: (fn: (prev: Page[]) => Page[]) => void
-  tokens: WorkspaceTokens
+  ds: DesignSystem
   subView: SubView
 }
 
 const FRAME_WIDTH = 640
 
-export function BuildView({ pages, setPages, tokens, subView }: Props) {
+export function BuildView({ pages, setPages, ds, subView }: Props) {
   const [activePageId, setActivePageId] = useState<string>(
     () => pages[0]?.id ?? '',
   )
@@ -340,7 +340,7 @@ export function BuildView({ pages, setPages, tokens, subView }: Props) {
                     <WireframeView
                       page={page}
                       selectedSectionId={selectedSectionId}
-                      tokens={tokens}
+                      ds={ds}
                       onSelectSection={(sid) => {
                         setActivePageId(page.id)
                         setSelectedSectionId(sid)

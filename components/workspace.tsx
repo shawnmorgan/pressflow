@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Topbar } from '@/components/topbar'
 import { type CanvasView } from '@/components/canvas/view-tabs'
 import { CanvasActions } from '@/components/canvas/canvas-actions'
@@ -15,7 +15,6 @@ import { CommentsPane } from '@/components/comments/comments-pane'
 import { ToastProvider } from '@/components/ui/toast'
 import {
   DEFAULT_DESIGN_SYSTEM,
-  toWorkspaceTokens,
   type DesignSystem,
 } from '@/lib/design-system'
 import { DEFAULT_PAGES, type Page } from '@/lib/sitemap'
@@ -33,9 +32,6 @@ export function Workspace() {
   // Sitemap — pages assembled in the Build views.
   const [pages, setPages] = useState<Page[]>(DEFAULT_PAGES)
 
-  // Build/Export consume the legacy WorkspaceTokens shape, derived from `ds`.
-  const tokens = useMemo(() => toWorkspaceTokens(ds), [ds])
-
   return (
     <ToastProvider>
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
@@ -45,10 +41,10 @@ export function Workspace() {
         {view === 'Style' && <StyleView ds={ds} setDs={setDs} />}
         {view === 'Content' && <ContentView pages={pages} />}
         {view === 'Sitemap' && (
-          <BuildView pages={pages} setPages={setPages} tokens={tokens} subView="sitemap" />
+          <BuildView pages={pages} setPages={setPages} ds={ds} subView="sitemap" />
         )}
         {view === 'Wireframe' && (
-          <BuildView pages={pages} setPages={setPages} tokens={tokens} subView="wireframe" />
+          <BuildView pages={pages} setPages={setPages} ds={ds} subView="wireframe" />
         )}
         {view === 'Mockup' && <MockupView />}
         {view === 'Client View' && <ClientView />}

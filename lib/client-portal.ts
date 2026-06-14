@@ -6,10 +6,8 @@ import {
 } from '@/lib/sitemap'
 import {
   DEFAULT_DESIGN_SYSTEM,
-  toWorkspaceTokens,
   type DesignSystem,
 } from '@/lib/design-system'
-import type { WorkspaceTokens } from '@/lib/tokens'
 
 /* =========================================================================
  * Client Portal model — the white-labeled, client-facing source of truth.
@@ -78,7 +76,6 @@ export type ClientProject = {
   links: RelevantLink[]
   pages: Page[]
   ds: DesignSystem
-  tokens: WorkspaceTokens
 }
 
 /* ---------- Content collection ---------- */
@@ -184,11 +181,9 @@ const REGISTRY: Record<string, Omit<ClientProject, 'pages' | 'ds' | 'tokens'>> =
 export function resolveClientProject(token: string): ClientProject | null {
   const base = REGISTRY[token.toLowerCase()]
   if (!base) return null
-  const ds = DEFAULT_DESIGN_SYSTEM
   return {
     ...base,
     pages: DEFAULT_PAGES,
-    ds,
-    tokens: toWorkspaceTokens(ds),
+    ds: DEFAULT_DESIGN_SYSTEM,
   }
 }

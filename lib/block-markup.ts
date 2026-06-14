@@ -5,7 +5,14 @@ import {
   headingLevel,
   SECTION_META,
 } from '@/lib/sitemap'
-import { type WorkspaceTokens, computeTypeScale } from '@/lib/tokens'
+import {
+  type DesignSystem,
+  applyAutoDerive,
+  fontStack,
+  radiusPx,
+  shadowValue,
+  clampCss,
+} from '@/lib/design-system'
 
 /**
  * Generates Gutenberg block markup (comment-delimited HTML) for a single
@@ -126,64 +133,165 @@ export function pageMarkup(page: Page): string {
 }
 
 /**
- * Builds a theme.json settings object string from the workspace design tokens,
+ * Builds a theme.json settings object from the rich DesignSystem,
  * mirroring the structure WordPress expects.
  */
-export function themeJson(tokens: WorkspaceTokens): string {
-  const scale = computeTypeScale(tokens.typography.base, tokens.typography.ratio)
-  const palette = tokens.colors.map((c) => ({
-    slug: c.name.toLowerCase().replace(/\s+/g, '-'),
-    name: c.name,
-    color: c.hex,
-  }))
-  const fontSizes = scale.map((s) => ({
-    slug: s.name.toLowerCase(),
+export function themeJson(ds: DesignSystem): string {
+  const pal = applyAutoDerive(ds.palette)
+  const c = pal.colors
+  const fonts = ds.fontSet
+
+  // Curated semantic palette — never a 50-900 ramp.
+  const palette = [
+    { slug: 'brand', name: 'Brand', color: c.brand },
+    { slug: 'brand-accent', name: 'Brand Accent', color: c.brandAccent },
+    { slug: 'brand-alt', name: 'Brand Alt', color: c.brandAlt },
+    { slug: 'alt-accent', name: 'Alt Accent', color: c.altAccent },
+    { slug: 'contrast', name: 'Contrast', color: c.contrast },
+    { slug: 'contrast-accent', name: 'Contrast Accent', color: c.contrastAccent },
+    { slug: 'base', name: 'Base', color: c.base },
+    { slug: 'base-accent', name: 'Base Accent', color: c.baseAccent },
+    { slug: 'tint', name: 'Tint', color: c.tint },
+    { slug: 'border-light', name: 'Border Light', color: c.borderLight },
+    { slug: 'border-dark', name: 'Border Dark', color: c.borderDark },
+  ]
+
+  // Fluid font sizes via clamp().
+  const fontSizes = ds.typography.sizes.map((s) => ({
+    slug: s.slug,
     name: s.name,
-    size: `${s.px}px`,
+    size: clampCss(s.min, (s.min / 16) + ((s.max - s.min) / 14), s.max),
   }))
+
+  // Font families from the font set roles.
+  const fontFamilies = [
+    { slug: 'primary', name: 'Primary', fontFamily: fontStack(fonts.primary) },
+    { slug: 'heading', name: 'Heading', fontFamily: fontStack(fonts.heading) },
+    ...(fonts.mono
+      ? [{ slug: 'mono', name: 'Monospace', fontFamily: fontStack(fonts.mono) }]
+      : []),
+  ]
+
+  // Fluid spacing via clamp().
+  const spacingSizes = ds.spacing.map((s) => ({
+    slug: s.key,
+    name: s.name,
+    size: clampCss(s.min, s.preferredVw, s.max),
+  }))
+
+  // Gradients.
+  const gradients = ds.gradients.map((g) => ({
+    slug: g.id,
+    name: g.name,
+    gradient: `linear-gradient(${g.angle}deg, ${g.from} 0%, ${g.to} 100%)`,
+  }))
+
+  // Duotones.
+  const duotone = ds.duotones.map((d) => ({
+    slug: d.id,
+    name: d.name,
+    colors: [d.shadow, d.highlight],
+  }))
+
+  // Shadows.
+  const shadow = {
+    presets: ds.shadows.map((s) => ({
+      slug: s.key,
+      name: s.name,
+      shadow: shadowValue(s),
+    })),
+  }
 
   const obj = {
     $schema: 'https://schemas.wp.org/trunk/theme.json',
     version: 3,
     settings: {
       layout: {
-        contentSize: `${tokens.ext.layout.contentSize}px`,
-        wideSize: `${tokens.ext.layout.wideSize}px`,
+        contentSize: `${ds.layout.contentSize}px`,
+        wideSize: `${ds.layout.wideSize}px`,
       },
-      color: { palette },
+      color: {
+        palette,
+        gradients,
+        duotone,
+      },
       typography: {
-        fontFamilies: [
-          {
-            slug: 'sans',
-            name: 'Sans',
-            fontFamily: 'Inter, system-ui, sans-serif',
-          },
-        ],
+        fontFamilies,
         fontSizes,
       },
       spacing: {
-        spacingSizes: tokens.spacing.map((s) => ({
-          slug: s.name.toLowerCase(),
-          name: s.name,
-          size: `${s.px}px`,
-        })),
-        blockGap: `${tokens.ext.blockGap}px`,
+        spacingSizes,
+        blockGap: true,
       },
+      shadow,
     },
     styles: {
       color: {
-        background: tokens.colors.find((c) => c.name === 'Surface')?.hex ?? '#ffffff',
-        text: tokens.colors.find((c) => c.name === 'Text')?.hex ?? '#1d2327',
+        background: c.base,
+        text: c.contrast,
+      },
+      spacing: {
+        blockGap: `${ds.blockGap}px`,
+        padding: {
+          top: `${ds.rootPadding.top}px`,
+          right: `${ds.rootPadding.right}px`,
+          bottom: `${ds.rootPadding.bottom}px`,
+          left: `${ds.rootPadding.left}px`,
+        },
+      },
+      typography: {
+        fontFamily: `var(--wp--preset--font-family--primary)`,
+        fontSize: `var(--wp--preset--font-size--medium)`,
       },
       elements: {
         button: {
-          border: { radius: `${tokens.ext.button.radius}px` },
+          border: {
+            radius: `${radiusPx(ds, ds.button.radiusKey)}px`,
+            width: `${ds.button.borderWidth}px`,
+            style: ds.button.borderStyle,
+            color: ds.button.bg,
+          },
           color: {
-            background: tokens.ext.button.bg,
-            text: tokens.ext.button.text,
+            background: ds.button.bg,
+            text: ds.button.text,
+          },
+          typography: {
+            fontWeight: String(ds.button.weight),
+            fontSize: `${ds.button.fontSize}px`,
+          },
+          spacing: {
+            padding: {
+              top: `${ds.button.padY}px`,
+              right: `${ds.button.padX}px`,
+              bottom: `${ds.button.padY}px`,
+              left: `${ds.button.padX}px`,
+            },
+          },
+          ':hover': {
+            color: {
+              background: ds.button.hoverBg,
+              text: ds.button.hoverText,
+            },
+          },
+          ':focus': {
+            color: {
+              background: ds.button.focusBg,
+              text: ds.button.focusText,
+            },
           },
         },
-        link: { color: { text: tokens.ext.link.color } },
+        link: {
+          color: { text: ds.link.color },
+          ':hover': { color: { text: ds.link.hoverColor } },
+          typography: {
+            textDecoration: ds.link.underline ? 'underline' : 'none',
+          },
+        },
+        heading: {
+          typography: {
+            fontFamily: `var(--wp--preset--font-family--heading)`,
+          },
+        },
       },
     },
   }

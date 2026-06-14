@@ -1,18 +1,23 @@
-import {
-  type TokenStatus,
-  type WorkspaceTokens,
-  type ColorSlot,
-  type SpacingStep,
-  type RadiusSlot,
-  DEFAULT_EXTENDED,
-  type BorderStyle,
-} from '@/lib/tokens'
-
 /* =========================================================================
- * PressFlow Design System — the rich, Ollie-grade source of truth for the
- * Design stage. Build/Export still consume the legacy WorkspaceTokens shape,
- * so `toWorkspaceTokens()` derives it from this model.
+ * PressFlow Design System — the rich, Ollie-grade source of truth.
+ * Build/Export read this model directly; the legacy WorkspaceTokens adapter
+ * has been removed.
  * ========================================================================= */
+
+/* ---------- Shared primitives ---------- */
+
+export type TokenStatus = 'import' | 'default' | 'offgrid'
+
+export const STATUS_META: Record<
+  TokenStatus,
+  { label: string; dot: string; text: string }
+> = {
+  import: { label: 'From import', dot: '#3858e9', text: '#3858e9' },
+  default: { label: 'Default', dot: '#a7aaad', text: '#646970' },
+  offgrid: { label: 'Off-grid — confirm', dot: '#dba617', text: '#b26200' },
+}
+
+export type BorderStyle = 'solid' | 'dashed' | 'dotted' | 'none'
 
 export function makeId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`
@@ -661,54 +666,3 @@ export function clampCss(min: number, preferredVw: number, max: number): string 
   return `clamp(${(min / 16).toFixed(3)}rem, ${preferred}, ${(max / 16).toFixed(3)}rem)`
 }
 
-/* ---------- Legacy adapter (keeps Build/Export working) ---------- */
-
-export function toWorkspaceTokens(ds: DesignSystem): WorkspaceTokens {
-  const p = applyAutoDerive(ds.palette)
-  const colors: ColorSlot[] = [
-    { name: 'Primary', hex: p.colors.brand, status: ds.colorStatus.brand },
-    { name: 'Surface', hex: p.colors.base, status: ds.colorStatus.base },
-    { name: 'Background', hex: p.colors.tint, status: ds.colorStatus.tint },
-    { name: 'Text', hex: p.colors.contrast, status: ds.colorStatus.contrast },
-    { name: 'Accent', hex: p.colors.brandAccent, status: ds.colorStatus.brandAccent },
-  ]
-  const spacing: SpacingStep[] = ds.spacing.map((s) => ({
-    name: s.name,
-    px: s.max,
-    status: s.status,
-  }))
-  const radii: RadiusSlot[] = [
-    { name: 'Small', px: radiusPx(ds, 'sm'), status: 'default' },
-    { name: 'Medium', px: radiusPx(ds, 'md'), status: 'default' },
-    { name: 'Large', px: radiusPx(ds, 'lg'), status: 'default' },
-  ]
-  return {
-    typography: { base: ds.typography.base, ratio: ds.typography.ratio },
-    spacing,
-    colors,
-    radii,
-    ext: {
-      ...DEFAULT_EXTENDED,
-      blockGap: ds.blockGap,
-      rootPadding: ds.rootPadding,
-      layout: ds.layout,
-      button: {
-        ...DEFAULT_EXTENDED.button,
-        bg: ds.button.bg,
-        text: ds.button.text,
-        radius: radiusPx(ds, ds.button.radiusKey),
-        borderWidth: ds.button.borderWidth,
-        borderStyle: ds.button.borderStyle,
-        padX: ds.button.padX,
-        padY: ds.button.padY,
-        weight: ds.button.weight,
-        fontSize: ds.button.fontSize,
-        hoverBg: ds.button.hoverBg,
-        hoverText: ds.button.hoverText,
-        focusBg: ds.button.focusBg,
-        focusText: ds.button.focusText,
-      },
-      link: { ...ds.link },
-    },
-  }
-}

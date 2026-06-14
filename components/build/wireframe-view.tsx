@@ -14,8 +14,12 @@ import {
   type SectionType,
   type Card,
 } from '@/lib/sitemap'
-import type { WorkspaceTokens } from '@/lib/tokens'
-import { computeTypeScale, slotToPx } from '@/lib/tokens'
+import {
+  type DesignSystem,
+  applyAutoDerive,
+  radiusPx,
+  sizePx,
+} from '@/lib/design-system'
 
 type Theme = {
   surface: string
@@ -25,13 +29,13 @@ type Theme = {
   accent: string
   radius: number
   btnStyle: CSSProperties
-  scale: { name: string; px: number }[]
+  sizes: { key: string; max: number }[]
 }
 
 type Props = {
   page: Page
   selectedSectionId: string | null
-  tokens: WorkspaceTokens
+  ds: DesignSystem
   onSelectSection: (id: string) => void
   onReorder: (from: number, to: number) => void
   onRemove: (id: string) => void
@@ -43,7 +47,7 @@ type Props = {
 export function WireframeView({
   page,
   selectedSectionId,
-  tokens,
+  ds,
   onSelectSection,
   onReorder,
   onRemove,
@@ -55,25 +59,27 @@ export function WireframeView({
   const [overIndex, setOverIndex] = useState<number | null>(null)
   const [addAt, setAddAt] = useState<number | null>(null)
 
-  const colors = Object.fromEntries(tokens.colors.map((c) => [c.name, c.hex]))
-  const b = tokens.ext.button
+  const pal = applyAutoDerive(ds.palette)
+  const c = pal.colors
+  const b = ds.button
+  const btnRadius = radiusPx(ds, b.radiusKey)
   const theme: Theme = {
-    surface: colors['Surface'] ?? '#ffffff',
-    bg: colors['Background'] ?? '#f6f7f7',
-    text: colors['Text'] ?? '#1d2327',
-    primary: colors['Primary'] ?? '#3858e9',
-    accent: colors['Accent'] ?? '#2145c7',
-    radius: b.radius,
-    scale: computeTypeScale(tokens.typography.base, tokens.typography.ratio),
+    surface: c.base,
+    bg: c.tint,
+    text: c.contrast,
+    primary: c.brand,
+    accent: c.brandAlt,
+    radius: radiusPx(ds, 'xs'),
+    sizes: ds.typography.sizes.map((s) => ({ key: s.key, max: s.max })),
     btnStyle: {
       backgroundColor: b.bg,
       color: b.text,
-      borderRadius: b.radius,
-      padding: `${Math.max(b.padY ?? 10, 8)}px ${Math.max(b.padX ?? 18, 12)}px`,
-      fontWeight: b.weight ?? 600,
-      fontSize: Math.min(b.fontSize ?? 14, 14),
-      borderWidth: b.borderWidth ?? 0,
-      borderStyle: b.borderStyle ?? 'solid',
+      borderRadius: btnRadius,
+      padding: `${Math.max(b.padY, 8)}px ${Math.max(b.padX, 12)}px`,
+      fontWeight: b.weight,
+      fontSize: Math.min(b.fontSize, 14),
+      borderWidth: b.borderWidth,
+      borderStyle: b.borderStyle,
       borderColor: b.bg,
       lineHeight: 1,
     },
@@ -279,9 +285,13 @@ function Editable({
 
 /* ---------- Per-type renderers ---------- */
 
-function levelPx(level: number, scale: { name: string; px: number }[]): number {
-  const name = level === 1 ? 'XXXL' : level === 2 ? 'XL' : level === 3 ? 'L' : 'M'
-  return slotToPx(name, scale)
+function levelPx(level: number, sizes: { key: string; max: number }[]): number {
+  const key = level === 1 ? 'xxxl' : level === 2 ? 'xl' : level === 3 ? 'l' : 'm'
+  return sizes.find((s) => s.key === key)?.max ?? 16
+}
+
+function sizeByKey(key: string, sizes: { key: string; max: number }[]): number {
+  return sizes.find((s) => s.key === key)?.max ?? 16
 }
 
 function SectionRender({
@@ -295,7 +305,7 @@ function SectionRender({
 }) {
   const e = section.elements
   const lvl = headingLevel(section)
-  const baseSize = slotToPx('M', theme.scale)
+  const baseSize = sizeByKey('m', theme.sizes)
 
   const setText = (
     key: 'eyebrow' | 'heading' | 'subheading' | 'body',
@@ -341,7 +351,7 @@ function SectionRender({
       onCommit={(v) => setText('heading', v)}
       placeholder="Heading"
       className="font-bold leading-tight tracking-tight"
-      style={{ color: theme.text, fontSize: Math.min(levelPx(lvl, theme.scale), 46) }}
+      style={{ color: theme.text, fontSize: Math.min(levelPx(lvl, theme.sizes), 46) }}
     />
   ) : null
   const Subheading = e.subheading.on ? (
@@ -350,7 +360,7 @@ function SectionRender({
       onCommit={(v) => setText('subheading', v)}
       placeholder="Subheading"
       className="font-medium"
-      style={{ color: theme.text, opacity: 0.7, fontSize: Math.min(slotToPx('L', theme.scale), 20) }}
+      style={{ color: theme.text, opacity: 0.7, fontSize: Math.min(sizeByKey('l', theme.sizes), 20) }}
     />
   ) : null
   const Body = e.body.on ? (
@@ -511,7 +521,7 @@ function SectionRender({
                   value={c.title}
                   onCommit={(v) => setCard(c.id, { title: v })}
                   className="font-semibold"
-                  style={{ color: theme.text, fontSize: Math.min(levelPx(3, theme.scale), 18) }}
+                  style={{ color: theme.text, fontSize: Math.min(levelPx(3, theme.sizes), 18) }}
                 />
                 <Editable
                   value={c.text}
@@ -603,7 +613,7 @@ function SectionRender({
                   value={c.text}
                   onCommit={(v) => setCard(c.id, { text: v })}
                   className="font-bold"
-                  style={{ color: theme.text, fontSize: Math.min(levelPx(2, theme.scale), 30) }}
+                  style={{ color: theme.text, fontSize: Math.min(levelPx(2, theme.sizes), 30) }}
                 />
                 {c.link && (
                   <Editable
@@ -656,7 +666,7 @@ function SectionRender({
               onCommit={(v) => setText('heading', v)}
               placeholder="Heading"
               className="font-bold leading-tight"
-              style={{ color: '#ffffff', fontSize: Math.min(levelPx(lvl, theme.scale), 36) }}
+              style={{ color: '#ffffff', fontSize: Math.min(levelPx(lvl, theme.sizes), 36) }}
             />
           )}
           {e.body.on && (

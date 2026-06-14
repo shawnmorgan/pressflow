@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { ChevronDown } from '@/components/icons'
-import { STATUS_META, type TokenStatus } from '@/lib/tokens'
+import { STATUS_META, type TokenStatus } from '@/lib/design-system'
 
 export function StatusPill({
   status,
