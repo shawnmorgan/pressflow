@@ -7,7 +7,6 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import {
   Plus,
   Plug,
-  Settings,
   User,
   Sparkles,
   FileCode,
@@ -16,6 +15,7 @@ import {
   ChevronRight,
   X,
   Check,
+  Trash,
 } from '@/components/icons'
 import { type ProjectSummary } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
@@ -53,6 +53,7 @@ export function ProjectsDashboard() {
   const { signOut } = useAuth()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [modalOpen, setModalOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<ProjectSummary | null>(null)
   const [loadingProjects, setLoadingProjects] = useState(true)
 
   useEffect(() => {
@@ -99,27 +100,12 @@ export function ProjectsDashboard() {
         <div className="flex items-center gap-1.5">
           <ThemeToggle />
           <Link
-            href="/connections"
-            aria-label="Connections"
-            className="flex size-8 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-          >
-            <Plug className="size-4" />
-          </Link>
-          <Link
-            href="/settings"
-            aria-label="Settings"
-            className="flex size-8 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-          >
-            <Settings className="size-4" />
-          </Link>
-          <button
-            type="button"
-            onClick={signOut}
-            aria-label="Sign out"
+            href="/account"
+            aria-label="Account"
             className="flex size-8 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
           >
             <User className="size-4" />
-          </button>
+          </Link>
         </div>
       </header>
 
@@ -170,7 +156,7 @@ export function ProjectsDashboard() {
               </button>
 
               {projects.map((p) => (
-                <ProjectCard key={p.id} project={p} />
+                <ProjectCard key={p.id} project={p} onDelete={() => setDeleteTarget(p)} />
               ))}
             </div>
           )}
@@ -178,15 +164,25 @@ export function ProjectsDashboard() {
       </main>
 
       {modalOpen && <NewProjectModal onClose={() => setModalOpen(false)} />}
+      {deleteTarget && (
+        <DeleteProjectModal
+          project={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={(id) => {
+            setProjects((prev) => prev.filter((p) => p.id !== id))
+            setDeleteTarget(null)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function ProjectCard({ project }: { project: ProjectSummary }) {
+function ProjectCard({ project, onDelete }: { project: ProjectSummary; onDelete: () => void }) {
   return (
     <Link
       href={`/editor?project=${project.id}`}
-      className="group flex min-h-[180px] flex-col rounded-sm border border-border bg-card p-5 transition-colors hover:border-foreground/30"
+      className="group relative flex min-h-[180px] flex-col rounded-sm border border-border bg-card p-5 transition-colors hover:border-foreground/30"
     >
       <div className="flex items-start justify-between">
         <span className="flex size-10 items-center justify-center rounded-sm bg-muted text-[13px] font-semibold text-foreground">
@@ -212,9 +208,23 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
         ))}
       </div>
 
-      <div className="mt-auto flex items-center gap-1.5 pt-4 text-[11px] text-muted-foreground">
-        <Clock className="size-3.5" />
-        {project.lastEdited}
+      <div className="mt-auto flex items-center justify-between pt-4">
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Clock className="size-3.5" />
+          {project.lastEdited}
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onDelete()
+          }}
+          aria-label={`Delete ${project.name}`}
+          className="flex size-7 items-center justify-center rounded-sm text-red-500 opacity-0 transition-all hover:bg-red-500/10 group-hover:opacity-100"
+        >
+          <Trash className="size-4" />
+        </button>
       </div>
     </Link>
   )
@@ -397,6 +407,100 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
               </button>
             </>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DeleteProjectModal({
+  project,
+  onClose,
+  onDeleted,
+}: {
+  project: ProjectSummary
+  onClose: () => void
+  onDeleted: (id: string) => void
+}) {
+  const [confirmName, setConfirmName] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  const canDelete = confirmName === project.name
+
+  async function handleDelete() {
+    if (!canDelete) return
+    setDeleting(true)
+    const { error } = await supabase.from('projects').delete().eq('id', project.id)
+    if (!error) {
+      onDeleted(project.id)
+    }
+    setDeleting(false)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Delete project"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-sm border border-border bg-card shadow-xl"
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+          <h2 className="text-[14px] font-semibold text-red-500">
+            Delete project
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-5">
+          <p className="text-[13px] leading-relaxed text-foreground">
+            This will permanently delete <strong>{project.name}</strong> and all
+            of its data. This action cannot be undone.
+          </p>
+          <div className="mt-4 flex flex-col gap-2">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-[#646970]">
+              Type &ldquo;{project.name}&rdquo; to confirm
+            </label>
+            <input
+              autoFocus
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && canDelete) handleDelete()
+              }}
+              placeholder={project.name}
+              className="rounded-sm border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none transition-colors focus:border-red-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3.5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-sm px-3 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canDelete || deleting}
+            onClick={handleDelete}
+            className="rounded-sm bg-red-600 px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {deleting ? 'Deleting...' : 'Delete project'}
+          </button>
         </div>
       </div>
     </div>

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronUpDown, Check, Plus } from '@/components/icons'
+import { ChevronUpDown, Check, Plus, ArrowLeft } from '@/components/icons'
+import Link from 'next/link'
 
 const PROJECTS = [
   { id: 'aurora', name: 'Aurora Press', sub: 'Personal workspace', initials: 'PF' },
@@ -47,7 +48,7 @@ export function ProjectSwitcher() {
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-sm border border-border bg-popover py-1 shadow-lg">
           <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Workspaces
+            Projects
           </p>
           {PROJECTS.map((p) => (
             <button
@@ -76,6 +77,16 @@ export function ProjectSwitcher() {
             </button>
           ))}
           <div className="my-1 border-t border-border" />
+          <Link
+            href="/"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground">
+              <ArrowLeft className="size-4" />
+            </span>
+            All Projects
+          </Link>
           <button
             type="button"
             className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
@@ -83,7 +94,7 @@ export function ProjectSwitcher() {
             <span className="flex size-7 shrink-0 items-center justify-center rounded-sm border border-dashed border-border text-muted-foreground">
               <Plus className="size-4" />
             </span>
-            New workspace
+            New Project
           </button>
         </div>
       )}
