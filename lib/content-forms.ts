@@ -583,7 +583,7 @@ export function useCustomTemplates(): FormTemplate[] {
 export function useContentFormLoader(projectId: string | null) {
   useEffect(() => {
     if (!projectId) return
-    if (loadedProjectId === projectId && forms.length > 0) return
+    if (loadedProjectId === projectId) return
     loadForms(projectId)
   }, [projectId])
 }
