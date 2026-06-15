@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { InfiniteCanvas } from '@/components/canvas/infinite-canvas'
 import { Frame } from '@/components/canvas/frame'
 import {
@@ -24,6 +24,8 @@ import {
   X,
 } from '@/components/icons'
 import { type Page } from '@/lib/sitemap'
+import { useAuth } from '@/lib/auth-context'
+import { supabase } from '@/lib/supabase'
 
 const Label = ({ children }: { children: React.ReactNode }) => (
   <span className="text-[10px] font-semibold uppercase tracking-wider text-[#646970]">
@@ -31,7 +33,7 @@ const Label = ({ children }: { children: React.ReactNode }) => (
   </span>
 )
 
-export function ContentView({ pages }: { pages: Page[] }) {
+export function ContentView({ pages, projectId }: { pages: Page[]; projectId?: string }) {
   const form = useContentForm()
 
   return (
@@ -39,7 +41,7 @@ export function ContentView({ pages }: { pages: Page[] }) {
       <div className="p-24 pl-32">
         <Frame title="Content Collection" width={720}>
           <div className="p-5">
-            {form ? <Builder form={form} /> : <TemplatePicker />}
+            {form ? <Builder form={form} projectId={projectId} /> : <TemplatePicker projectId={projectId} />}
           </div>
         </Frame>
       </div>
@@ -47,7 +49,7 @@ export function ContentView({ pages }: { pages: Page[] }) {
   )
 }
 
-function Builder({ form }: { form: ContentForm }) {
+function Builder({ form, projectId }: { form: ContentForm; projectId?: string }) {
   const [saving, setSaving] = useState(false)
 
   const submitted = form.sections.filter((s) => s.status === 'submitted').length
@@ -134,7 +136,7 @@ function Builder({ form }: { form: ContentForm }) {
         )}
       </div>
 
-      {saving && <SaveTemplateModal onClose={() => setSaving(false)} />}
+      {saving && <SaveTemplateModal onClose={() => setSaving(false)} projectId={projectId} />}
     </div>
   )
 }
@@ -233,8 +235,24 @@ function TrackPanel({
   )
 }
 
-function SaveTemplateModal({ onClose }: { onClose: () => void }) {
+function SaveTemplateModal({ onClose, projectId }: { onClose: () => void; projectId?: string }) {
   const [name, setName] = useState('')
+  const { user } = useAuth()
+  const [accountId, setAccountId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('account_members')
+      .select('account_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data) setAccountId(data.account_id)
+      })
+  }, [user])
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4"
@@ -271,7 +289,7 @@ function SaveTemplateModal({ onClose }: { onClose: () => void }) {
             type="button"
             disabled={!name.trim()}
             onClick={() => {
-              saveAsTemplate(name)
+              saveAsTemplate(name, accountId ?? undefined)
               onClose()
             }}
             className="rounded-sm bg-primary px-3.5 py-1.5 text-[12px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"

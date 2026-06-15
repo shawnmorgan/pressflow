@@ -1,8 +1,9 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useSyncExternalStore, useEffect } from 'react'
 import { DEFAULT_PAGES, sectionLabel } from '@/lib/sitemap'
 import { collectableSections, sectionContentFields } from '@/lib/client-portal'
+import { supabase } from '@/lib/supabase'
 
 /* =========================================================================
  * Content forms — the agency-side, Content-Snare-style content collection
@@ -443,6 +444,8 @@ export type ContentForm = {
 }
 
 let currentForm: ContentForm | null = null
+let currentFormDbId: string | null = null
+let currentProjectId: string | null = null
 let customTemplates: FormTemplate[] = []
 const listeners = new Set<() => void>()
 
@@ -462,6 +465,78 @@ function getTemplates() {
 }
 const SERVER_FORM = null
 const SERVER_TEMPLATES: FormTemplate[] = []
+
+/* ---------- DB persistence ---------- */
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+function debounceSave() {
+  if (!currentForm || !currentFormDbId) return
+  if (saveTimer) clearTimeout(saveTimer)
+  const id = currentFormDbId
+  const form = currentForm
+  saveTimer = setTimeout(() => {
+    supabase
+      .from('content_forms')
+      .update({
+        sections: form.sections as unknown as Record<string, unknown>[],
+        sent: form.sent,
+        sent_at: form.sentAt ? new Date(form.sentAt).toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .then()
+  }, 800)
+}
+
+/** Load an existing content form from DB, or return null. */
+export async function loadForm(projectId: string): Promise<ContentForm | null> {
+  const { data } = await supabase
+    .from('content_forms')
+    .select('id, template_id, site_type, includes_structure, sections, sent, sent_at')
+    .eq('project_id', projectId)
+    .eq('kind', 'content')
+    .limit(1)
+    .maybeSingle()
+
+  if (!data) return null
+
+  currentFormDbId = data.id
+  currentProjectId = projectId
+  const form: ContentForm = {
+    templateId: data.template_id,
+    siteType: (data.site_type as SiteType) ?? 'static',
+    includesStructure: data.includes_structure ?? true,
+    sections: (data.sections as FormSection[]) ?? [],
+    sent: data.sent ?? false,
+    sentAt: data.sent_at ? new Date(data.sent_at).getTime() : undefined,
+  }
+  currentForm = form
+  emit()
+  return form
+}
+
+/** Load custom templates for an account from DB. */
+export async function loadCustomTemplates(accountId: string): Promise<FormTemplate[]> {
+  const { data } = await supabase
+    .from('form_templates')
+    .select('id, name, site_type, description, sections')
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: false })
+
+  if (data) {
+    customTemplates = data.map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      siteType: t.site_type as SiteType,
+      description: t.description ?? '',
+      builtIn: false,
+      sections: (t.sections as FormSection[]) ?? [],
+    }))
+    emit()
+  }
+  return customTemplates
+}
 
 /** Deep-clone a section list, regenerating every id so applied templates are independent. */
 function cloneSections(sections: FormSection[]): FormSection[] {
@@ -483,9 +558,10 @@ function cloneFields(fields: FormField[]): FormField[] {
 
 /* ---------- mutations ---------- */
 
-export function startForm(
+export async function startForm(
   template: FormTemplate,
   includeStructure: boolean,
+  projectId?: string,
 ) {
   const structure = includeStructure ? structureSections() : []
   currentForm = {
@@ -496,6 +572,52 @@ export function startForm(
     sent: false,
   }
   emit()
+
+  if (projectId) {
+    currentProjectId = projectId
+    // Check if form already exists for this project
+    const { data: existing } = await supabase
+      .from('content_forms')
+      .select('id')
+      .eq('project_id', projectId)
+      .eq('kind', 'content')
+      .maybeSingle()
+
+    if (existing) {
+      // Update existing
+      currentFormDbId = existing.id
+      await supabase
+        .from('content_forms')
+        .update({
+          template_id: template.id,
+          site_type: template.siteType,
+          includes_structure: includeStructure,
+          sections: currentForm.sections as unknown as Record<string, unknown>[],
+          sent: false,
+          sent_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
+    } else {
+      // Insert new
+      const { data } = await supabase
+        .from('content_forms')
+        .insert({
+          project_id: projectId,
+          kind: 'content',
+          template_id: template.id,
+          site_type: template.siteType,
+          includes_structure: includeStructure,
+          sections: currentForm.sections as unknown as Record<string, unknown>[],
+          sent: false,
+        })
+        .select('id')
+        .single()
+      if (data) {
+        currentFormDbId = data.id
+      }
+    }
+  }
 }
 
 export function resetForm() {
@@ -507,6 +629,7 @@ function mutate(fn: (form: ContentForm) => ContentForm) {
   if (!currentForm) return
   currentForm = fn(currentForm)
   emit()
+  debounceSave()
 }
 
 export function addSection() {
@@ -615,24 +738,43 @@ function defaultLabel(type: FieldType): string {
   return FIELD_TYPE_META[type].label
 }
 
-export function saveAsTemplate(name: string) {
+export async function saveAsTemplate(name: string, accountId?: string) {
   if (!currentForm) return
+  const sections = cloneSections(currentForm.sections.filter((s) => s.origin !== 'page'))
   const tpl: FormTemplate = {
     id: uid('tpl'),
     name: name.trim() || 'Custom template',
     siteType: currentForm.siteType,
     description: 'Custom template',
     builtIn: false,
-    // Only persist non-structure sections — structure re-seeds per project.
-    sections: cloneSections(currentForm.sections.filter((s) => s.origin !== 'page')),
+    sections,
   }
+
+  if (accountId) {
+    const { data } = await supabase
+      .from('form_templates')
+      .insert({
+        account_id: accountId,
+        name: tpl.name,
+        site_type: tpl.siteType,
+        description: tpl.description,
+        sections: sections as unknown as Record<string, unknown>[],
+      })
+      .select('id')
+      .single()
+    if (data) {
+      tpl.id = data.id
+    }
+  }
+
   customTemplates = [tpl, ...customTemplates]
   emit()
 }
 
-export function removeCustomTemplate(id: string) {
+export async function removeCustomTemplate(id: string) {
   customTemplates = customTemplates.filter((t) => t.id !== id)
   emit()
+  await supabase.from('form_templates').delete().eq('id', id)
 }
 
 /* ---------- hooks ---------- */
@@ -642,4 +784,14 @@ export function useContentForm(): ContentForm | null {
 }
 export function useCustomTemplates(): FormTemplate[] {
   return useSyncExternalStore(subscribe, getTemplates, () => SERVER_TEMPLATES)
+}
+
+/** Load form from DB when projectId changes. */
+export function useContentFormLoader(projectId: string | null) {
+  useEffect(() => {
+    if (!projectId) return
+    // Only load if we haven't already loaded for this project
+    if (currentProjectId === projectId && currentForm) return
+    loadForm(projectId)
+  }, [projectId])
 }

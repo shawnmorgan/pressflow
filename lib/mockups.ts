@@ -1,15 +1,14 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useSyncExternalStore, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 
 /* =========================================================================
  * Mockups store — the agency-curated holder of high-fidelity mockups that
  * come from Figma / Claude Design as either an IMAGE or raw HTML.
  *
- * This app has no backend; canonical data lives in module-level seeds (see
- * DEFAULT_PAGES / DEFAULT_DESIGN_SYSTEM). This store follows the same model
- * with a tiny subscribe layer so mockups added on the agency Mockups page
- * surface live in the white-labeled Client Portal within a session.
+ * Data is loaded from and persisted to the Supabase `mockups` table.
+ * Uses useSyncExternalStore for reactive updates.
  * ========================================================================= */
 
 export type MockupKind = 'image' | 'html'
@@ -28,31 +27,8 @@ export type Mockup = {
   createdAt: number
 }
 
-const SEED: Mockup[] = [
-  {
-    id: 'mk-seed-home',
-    name: 'Homepage — v2 (Figma)',
-    kind: 'image',
-    pageId: 'home',
-    imageUrl: '/mockups/aurora-home.png',
-    createdAt: Date.now() - 1000 * 60 * 60 * 24,
-  },
-  {
-    id: 'mk-seed-cta',
-    name: 'Newsletter CTA (Claude Design)',
-    kind: 'html',
-    pageId: null,
-    html: `<section style="font-family:Inter,system-ui,sans-serif;background:#0f6b5c;color:#fff;padding:56px 32px;text-align:center;">
-  <p style="text-transform:uppercase;letter-spacing:.12em;font-size:12px;font-weight:700;opacity:.8;margin:0 0 12px;">Stay in the loop</p>
-  <h2 style="font-size:32px;font-weight:700;margin:0 0 12px;">Fresh roasts, every Friday</h2>
-  <p style="font-size:16px;opacity:.9;max-width:42ch;margin:0 auto 24px;line-height:1.6;">Join the Aurora list for early access to new single-origin beans and brewing notes.</p>
-  <span style="display:inline-block;background:#fff;color:#0f6b5c;font-weight:600;padding:12px 22px;border-radius:4px;">Subscribe</span>
-</section>`,
-    createdAt: Date.now() - 1000 * 60 * 60 * 5,
-  },
-]
-
-let mockups: Mockup[] = [...SEED]
+let mockups: Mockup[] = []
+let loadedProjectId: string | null = null
 const listeners = new Set<() => void>()
 
 function emit() {
@@ -68,33 +44,81 @@ function getSnapshot() {
   return mockups
 }
 
-/* Server snapshot is the stable seed (store mutations are client-only). */
-const SERVER_SNAPSHOT = SEED
+const SERVER_SNAPSHOT: Mockup[] = []
 function getServerSnapshot() {
   return SERVER_SNAPSHOT
 }
 
-let seq = 0
-function nextId() {
-  seq += 1
-  return `mk-${Date.now()}-${seq}`
+export async function loadMockups(projectId: string) {
+  const { data } = await supabase
+    .from('mockups')
+    .select('id, name, kind, page_id, html, created_at')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false })
+
+  if (data) {
+    loadedProjectId = projectId
+    mockups = data.map((m: any) => ({
+      id: m.id,
+      name: m.name,
+      kind: m.kind as MockupKind,
+      pageId: m.page_id,
+      html: m.html ?? undefined,
+      createdAt: new Date(m.created_at).getTime(),
+    }))
+    emit()
+  }
 }
 
-export function addMockup(input: Omit<Mockup, 'id' | 'createdAt'>) {
-  const mockup: Mockup = { ...input, id: nextId(), createdAt: Date.now() }
+export async function addMockup(
+  input: Omit<Mockup, 'id' | 'createdAt'>,
+  projectId?: string,
+): Promise<Mockup | null> {
+  const pid = projectId ?? loadedProjectId
+  if (!pid) return null
+
+  const { data } = await supabase
+    .from('mockups')
+    .insert({
+      project_id: pid,
+      name: input.name,
+      kind: input.kind,
+      page_id: input.pageId,
+      html: input.html ?? null,
+    })
+    .select('id, created_at')
+    .single()
+
+  if (!data) return null
+
+  const mockup: Mockup = {
+    ...input,
+    id: data.id,
+    createdAt: new Date(data.created_at).getTime(),
+  }
   mockups = [mockup, ...mockups]
   emit()
   return mockup
 }
 
-export function removeMockup(id: string) {
+export async function removeMockup(id: string) {
   mockups = mockups.filter((m) => m.id !== id)
   emit()
+  await supabase.from('mockups').delete().eq('id', id)
 }
 
 /** Subscribe to the live mockups list (sorted newest-first). */
 export function useMockups(): Mockup[] {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+}
+
+/** Load mockups when projectId changes. */
+export function useMockupsLoader(projectId: string | null) {
+  useEffect(() => {
+    if (!projectId) return
+    if (loadedProjectId === projectId) return
+    loadMockups(projectId)
+  }, [projectId])
 }
 
 /**

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -14,6 +14,9 @@ import {
 } from '@/components/icons'
 import { ConnectionsContent } from '@/components/connections/connections-content'
 import { SettingsContent } from '@/components/settings/settings-content'
+import { AuthGuard } from '@/components/auth-guard'
+import { useAuth } from '@/lib/auth-context'
+import { supabase } from '@/lib/supabase'
 
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
   <span className="text-[10px] font-semibold uppercase tracking-wider text-[#646970]">
@@ -35,9 +38,49 @@ const LOGINS = [
 ]
 
 export default function AccountPage() {
-  const [name, setName] = useState('Maya Tang')
-  const [email, setEmail] = useState('maya@aurorapress.io')
+  return (
+    <AuthGuard>
+      <AccountPageInner />
+    </AuthGuard>
+  )
+}
+
+function AccountPageInner() {
+  const { user } = useAuth()
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [twoFactor, setTwoFactor] = useState(false)
+
+  // Load profile from DB
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    supabase
+      .from('profiles')
+      .select('name, email')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        setName(data.name ?? '')
+        setEmail(data.email ?? '')
+      })
+    return () => { cancelled = true }
+  }, [user])
+
+  const saveProfile = useCallback(async () => {
+    if (!user) return
+    setSaving(true)
+    await supabase
+      .from('profiles')
+      .update({ name, email })
+      .eq('id', user.id)
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }, [user, name, email])
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
@@ -69,7 +112,12 @@ export default function AccountPage() {
             <div className="mt-4 flex flex-col gap-5 rounded-sm border border-border bg-card p-5">
               <div className="flex items-center gap-4">
                 <span className="flex size-14 shrink-0 items-center justify-center rounded-sm bg-primary text-[20px] font-semibold text-primary-foreground">
-                  MT
+                  {name
+                    .split(' ')
+                    .map((w) => w[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase() || '??'}
                 </span>
                 <div className="flex flex-col gap-2">
                   <button
@@ -107,9 +155,11 @@ export default function AccountPage() {
               <div className="flex justify-end border-t border-border pt-4">
                 <button
                   type="button"
-                  className="rounded-sm bg-primary px-3.5 py-2 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
+                  onClick={saveProfile}
+                  disabled={saving}
+                  className="rounded-sm bg-primary px-3.5 py-2 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-50"
                 >
-                  Save changes
+                  {saving ? 'Saving...' : saved ? 'Saved!' : 'Save changes'}
                 </button>
               </div>
             </div>

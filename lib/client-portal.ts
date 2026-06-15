@@ -146,44 +146,92 @@ export function collectableSections(page: Page): Section[] {
   )
 }
 
-/* ---------- Token registry ---------- */
+/* ---------- Default agency brand (fallback) ---------- */
 
-const AURORA: AgencyBrand = {
-  name: 'Northbeam Studio',
-  initials: 'NB',
-  accent: '#0f6b5c',
-  contactEmail: 'hello@northbeam.studio',
+const DEFAULT_AGENCY: AgencyBrand = {
+  name: 'Your Agency',
+  initials: 'YA',
+  accent: '#3858e9',
+  contactEmail: '',
 }
 
-const REGISTRY: Record<string, Omit<ClientProject, 'pages' | 'ds' | 'tokens'>> = {
-  aurora: {
-    token: 'aurora',
-    agency: AURORA,
-    projectName: 'Aurora Press',
-    clientName: 'Aurora Coffee Roasters',
-    domain: 'auroracoffee.com',
-    stage: 'approval',
-    calendarLink: 'https://cal.com/northbeam/aurora',
-    links: [
-      { id: 'l1', label: 'Signed proposal', url: 'https://drive.example.com/aurora-proposal' },
-      { id: 'l2', label: 'Invoice #0042', url: 'https://billing.example.com/0042' },
-      { id: 'l3', label: 'Shared drive', url: 'https://drive.example.com/aurora' },
-      { id: 'l4', label: 'Kickoff notes', url: 'https://notes.example.com/aurora-kickoff' },
-    ],
-  },
-}
+/* ---------- DB-backed resolution (server-only) ---------- */
 
 /**
- * Resolve a portal access token to a project. Returns null for unknown tokens
- * so the route can show a friendly invalid-link screen (token-based access,
- * no client account required).
+ * Resolve a portal access token to a project using Supabase.
+ * Must be called from a server context with the secret key client.
  */
-export function resolveClientProject(token: string): ClientProject | null {
-  const base = REGISTRY[token.toLowerCase()]
-  if (!base) return null
+export async function resolveClientProject(
+  supabase: { from: (table: string) => any },
+  token: string,
+): Promise<ClientProject | null> {
+  // Look up the share by token
+  const { data: share } = await supabase
+    .from('shares')
+    .select('id, project_id, token, visible_views, can_comment')
+    .eq('token', token)
+    .eq('revoked', false)
+    .maybeSingle()
+
+  if (!share) return null
+
+  // Load project + account white_label
+  const { data: project } = await supabase
+    .from('projects')
+    .select('name, client_name, client_domain, stage, calendar_link, relevant_links, account_id, accounts(name, white_label)')
+    .eq('id', share.project_id)
+    .single()
+
+  if (!project) return null
+
+  // Load pages
+  const { data: pagesData } = await supabase
+    .from('pages')
+    .select('id, name, slug, parent_id, position, sections')
+    .eq('project_id', share.project_id)
+    .order('position')
+
+  // Load design system
+  const { data: dsData } = await supabase
+    .from('design_systems')
+    .select('tokens')
+    .eq('project_id', share.project_id)
+    .single()
+
+  const pages: Page[] = pagesData
+    ? pagesData.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        parentId: r.parent_id,
+        sections: r.sections ?? [],
+      }))
+    : DEFAULT_PAGES
+
+  const ds: DesignSystem = dsData?.tokens
+    ? (dsData.tokens as DesignSystem)
+    : DEFAULT_DESIGN_SYSTEM
+
+  // Build agency brand from account white_label or defaults
+  const account = project.accounts as any
+  const wl = account?.white_label ?? {}
+  const agency: AgencyBrand = {
+    name: wl.name ?? account?.name ?? DEFAULT_AGENCY.name,
+    initials: wl.initials ?? (account?.name?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()) ?? DEFAULT_AGENCY.initials,
+    accent: wl.accent ?? DEFAULT_AGENCY.accent,
+    contactEmail: wl.contactEmail ?? DEFAULT_AGENCY.contactEmail,
+  }
+
   return {
-    ...base,
-    pages: DEFAULT_PAGES,
-    ds: DEFAULT_DESIGN_SYSTEM,
+    token: share.token,
+    agency,
+    projectName: project.name,
+    clientName: project.client_name ?? '',
+    domain: project.client_domain ?? '',
+    stage: (project.stage as PortalStage) ?? 'onboarding',
+    calendarLink: project.calendar_link ?? '',
+    links: (project.relevant_links as RelevantLink[]) ?? [],
+    pages,
+    ds,
   }
 }

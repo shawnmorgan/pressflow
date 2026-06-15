@@ -16,12 +16,12 @@ const Label = ({ children }: { children: React.ReactNode }) => (
   </span>
 )
 
-export function TemplatePicker() {
+export function TemplatePicker({ projectId }: { projectId?: string }) {
   const custom = useCustomTemplates()
   const [includeStructure, setIncludeStructure] = useState(true)
   const [selected, setSelected] = useState<FormTemplate | null>(null)
 
-  const start = (tpl: FormTemplate) => startForm(tpl, includeStructure)
+  const start = (tpl: FormTemplate) => startForm(tpl, includeStructure, projectId)
 
   return (
     <div className="flex flex-col gap-6">

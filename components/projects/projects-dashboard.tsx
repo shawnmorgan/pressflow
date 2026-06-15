@@ -18,6 +18,8 @@ import {
 } from '@/components/icons'
 import { type ProjectSummary } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth-context'
+import { DEFAULT_DESIGN_SYSTEM } from '@/lib/design-system'
 
 type StartingPoint = 'import' | 'mcp' | 'defaults'
 
@@ -54,12 +56,14 @@ export function ProjectsDashboard() {
   const [loadingProjects, setLoadingProjects] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
     async function load() {
       const { data } = await supabase
         .from('projects')
         .select('id, name, target, stage, updated_at')
         .order('updated_at', { ascending: false })
 
+      if (cancelled) return
       if (data) {
         setProjects(
           data.map((p) => ({
@@ -80,6 +84,7 @@ export function ProjectsDashboard() {
       setLoadingProjects(false)
     }
     load()
+    return () => { cancelled = true }
   }, [])
 
   return (
@@ -124,7 +129,11 @@ export function ProjectsDashboard() {
             )}
           </div>
 
-          {projects.length === 0 ? (
+          {loadingProjects ? (
+            <div className="mt-10 flex items-center justify-center py-16">
+              <span className="text-[13px] text-muted-foreground">Loading projects...</span>
+            </div>
+          ) : projects.length === 0 ? (
             <EmptyState onCreate={() => setModalOpen(true)} />
           ) : (
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -247,13 +256,55 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 
 function NewProjectModal({ onClose }: { onClose: () => void }) {
   const router = useRouter()
+  const { user } = useAuth()
   const [step, setStep] = useState<1 | 2>(1)
   const [name, setName] = useState('')
   const [choice, setChoice] = useState<StartingPoint | null>(null)
+  const [creating, setCreating] = useState(false)
 
-  const create = () => {
-    if (!choice) return
-    router.push('/editor')
+  const create = async () => {
+    if (!choice || !user || creating) return
+    setCreating(true)
+
+    // Get account_id for current user
+    const { data: membership } = await supabase
+      .from('account_members')
+      .select('account_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single()
+
+    if (!membership) {
+      setCreating(false)
+      return
+    }
+
+    // Insert project
+    const { data: project, error } = await supabase
+      .from('projects')
+      .insert({
+        account_id: membership.account_id,
+        name: name.trim(),
+        target: 'ollie',
+        stage: 'onboarding',
+      })
+      .select('id')
+      .single()
+
+    if (error || !project) {
+      setCreating(false)
+      return
+    }
+
+    // Insert default design system
+    await supabase
+      .from('design_systems')
+      .insert({
+        project_id: project.id,
+        tokens: DEFAULT_DESIGN_SYSTEM as unknown as Record<string, unknown>,
+      })
+
+    router.push(`/editor?project=${project.id}`)
   }
 
   return (
@@ -389,11 +440,11 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
               </button>
               <button
                 type="button"
-                disabled={!choice}
+                disabled={!choice || creating}
                 onClick={create}
                 className="rounded-sm bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Create project
+                {creating ? 'Creating...' : 'Create project'}
               </button>
             </>
           )}

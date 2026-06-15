@@ -137,9 +137,9 @@ function AddMockupForm() {
     name.trim().length > 0 &&
     (kind === 'image' ? !!imageUrl : html.trim().length > 0)
 
-  const add = () => {
+  const add = async () => {
     if (!canAdd) return
-    addMockup({
+    await addMockup({
       name: name.trim(),
       kind,
       pageId: pageId || null,

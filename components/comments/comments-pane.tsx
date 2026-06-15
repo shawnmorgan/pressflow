@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { X, MessageSquare } from '@/components/icons'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth-context'
 
 type Comment = {
   id: string
@@ -13,37 +15,73 @@ type Comment = {
   resolved?: boolean
 }
 
-const SAMPLE_COMMENTS: Comment[] = [
-  {
-    id: 'c1',
-    author: 'Dana Whitfield',
-    initials: 'DW',
-    target: 'Style · Colors',
-    body: 'Can we push the primary a touch darker for AA contrast on buttons?',
-    time: '2h ago',
-  },
-  {
-    id: 'c2',
-    author: 'Marcus Lee',
-    initials: 'ML',
-    target: 'Home · Hero',
-    body: 'Love this layout. Subheading copy still placeholder though.',
-    time: '4h ago',
-  },
-  {
-    id: 'c3',
-    author: 'Priya Nair',
-    initials: 'PN',
-    target: 'Sitemap · Services',
-    body: 'Should Pricing live under Services or be top-level?',
-    time: 'Yesterday',
-    resolved: true,
-  },
-]
+function formatTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days === 1) return 'Yesterday'
+  return `${days}d ago`
+}
 
-export function CommentsPane({ onClose }: { onClose: () => void }) {
-  const [comments, setComments] = useState<Comment[]>(SAMPLE_COMMENTS)
+export function CommentsPane({ onClose, projectId }: { onClose: () => void; projectId: string }) {
+  const { user } = useAuth()
+  const [comments, setComments] = useState<Comment[]>([])
   const [draft, setDraft] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [userName, setUserName] = useState<string | null>(null)
+
+  // Load user profile name once
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('profiles')
+      .select('name')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data) setUserName(data.name ?? 'You')
+      })
+  }, [user])
+
+  // Load comments from DB
+  useEffect(() => {
+    let cancelled = false
+    supabase
+      .from('comments')
+      .select('id, target_type, target_id, body, resolved, created_at, author_user_id, profiles(name)')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (cancelled) return
+        if (data) {
+          setComments(
+            data.map((c: any) => {
+              const name = c.profiles?.name ?? 'Unknown'
+              return {
+                id: c.id,
+                author: name,
+                initials: name
+                  .split(' ')
+                  .map((w: string) => w[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase(),
+                target: c.target_type === 'general' ? 'General' : `${c.target_type} · ${c.target_id}`,
+                body: c.body,
+                time: formatTime(c.created_at),
+                resolved: c.resolved,
+              }
+            }),
+          )
+        }
+        setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [projectId])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -51,14 +89,35 @@ export function CommentsPane({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const addComment = () => {
+  const addComment = async () => {
     const text = draft.trim()
-    if (!text) return
+    if (!text || !user) return
+
+    const { data } = await supabase
+      .from('comments')
+      .insert({
+        project_id: projectId,
+        target_type: 'general',
+        target_id: 'general',
+        author_user_id: user.id,
+        body: text,
+      })
+      .select('id, created_at')
+      .single()
+
+    if (!data) return
+
+    const name = userName ?? 'You'
     setComments((prev) => [
       {
-        id: `c-${Math.random().toString(36).slice(2, 8)}`,
-        author: 'You',
-        initials: 'YO',
+        id: data.id,
+        author: name,
+        initials: name
+          .split(' ')
+          .map((w: string) => w[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase(),
         target: 'General',
         body: text,
         time: 'Just now',
@@ -104,7 +163,11 @@ export function CommentsPane({ onClose }: { onClose: () => void }) {
 
         {/* List */}
         <div className="flex-1 overflow-y-auto">
-          {comments.length === 0 ? (
+          {loading ? (
+            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+              <p className="text-[13px] text-muted-foreground">Loading...</p>
+            </div>
+          ) : comments.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center px-6 text-center">
               <MessageSquare className="size-6 text-muted-foreground" />
               <p className="mt-2 text-[13px] text-muted-foreground">No comments yet</p>

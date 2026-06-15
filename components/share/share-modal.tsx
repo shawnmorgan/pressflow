@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { X, Link, Check, Copy } from '@/components/icons'
+import { supabase } from '@/lib/supabase'
 
 type ShareKey = 'style' | 'sitemap' | 'wireframe'
 
@@ -11,9 +12,9 @@ const SHARE_OPTIONS: { key: ShareKey; label: string; hint: string }[] = [
   { key: 'wireframe', label: 'Wireframe', hint: 'Styled page previews' },
 ]
 
-function getShareUrl(projectId: string) {
+function getShareUrl(token: string) {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  return `${origin}/portal/${projectId}`
+  return `${origin}/portal/${token}`
 }
 
 export function ShareModal({ onClose, projectId }: { onClose: () => void; projectId: string }) {
@@ -24,6 +25,59 @@ export function ShareModal({ onClose, projectId }: { onClose: () => void; projec
   })
   const [allowComments, setAllowComments] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [shareToken, setShareToken] = useState<string | null>(null)
+  const [shareId, setShareId] = useState<string | null>(null)
+
+  // Load or create share on mount
+  useEffect(() => {
+    let cancelled = false
+    async function loadOrCreate() {
+      // Check for existing active share
+      const { data: existing } = await supabase
+        .from('shares')
+        .select('id, token, visible_views, can_comment')
+        .eq('project_id', projectId)
+        .eq('revoked', false)
+        .limit(1)
+        .maybeSingle()
+
+      if (cancelled) return
+
+      if (existing) {
+        setShareToken(existing.token)
+        setShareId(existing.id)
+        const views = (existing.visible_views as string[]) ?? []
+        setSelected({
+          style: views.includes('style'),
+          sitemap: views.includes('sitemap'),
+          wireframe: views.includes('wireframe'),
+        })
+        setAllowComments(existing.can_comment ?? true)
+      }
+    }
+    loadOrCreate()
+    return () => { cancelled = true }
+  }, [projectId])
+
+  // Debounced save for share options
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveOptions = useCallback(
+    (views: Record<ShareKey, boolean>, canComment: boolean) => {
+      if (!shareId) return
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
+        const visible = Object.entries(views)
+          .filter(([, v]) => v)
+          .map(([k]) => k)
+        supabase
+          .from('shares')
+          .update({ visible_views: visible, can_comment: canComment })
+          .eq('id', shareId)
+          .then()
+      }, 800)
+    },
+    [shareId],
+  )
 
   // Close on Escape.
   useEffect(() => {
@@ -32,18 +86,56 @@ export function ShareModal({ onClose, projectId }: { onClose: () => void; projec
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const toggle = (key: ShareKey) =>
-    setSelected((prev) => ({ ...prev, [key]: !prev[key] }))
+  const toggle = (key: ShareKey) => {
+    const next = { ...selected, [key]: !selected[key] }
+    setSelected(next)
+    saveOptions(next, allowComments)
+  }
+
+  const toggleComments = () => {
+    const next = !allowComments
+    setAllowComments(next)
+    saveOptions(selected, next)
+  }
 
   const copyLink = async () => {
+    let token = shareToken
+
+    // Create share if none exists
+    if (!token) {
+      token = crypto.randomUUID()
+      const visible = Object.entries(selected)
+        .filter(([, v]) => v)
+        .map(([k]) => k)
+      const { data } = await supabase
+        .from('shares')
+        .insert({
+          project_id: projectId,
+          token,
+          visible_views: visible,
+          can_comment: allowComments,
+        })
+        .select('id')
+        .single()
+
+      if (data) {
+        setShareToken(token)
+        setShareId(data.id)
+      }
+    }
+
+    if (!token) return
+
     try {
-      await navigator.clipboard.writeText(getShareUrl(projectId))
+      await navigator.clipboard.writeText(getShareUrl(token))
     } catch {
       /* clipboard may be unavailable; still show feedback */
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 1800)
   }
+
+  const displayUrl = shareToken ? getShareUrl(shareToken) : getShareUrl('...')
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
@@ -83,7 +175,7 @@ export function ShareModal({ onClose, projectId }: { onClose: () => void; projec
             <div className="flex items-center gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2 rounded-sm border border-border bg-background px-2.5 py-2">
                 <Link className="size-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate text-[12px] text-foreground">{getShareUrl(projectId)}</span>
+                <span className="truncate text-[12px] text-foreground">{displayUrl}</span>
               </div>
               <button
                 type="button"
@@ -122,7 +214,7 @@ export function ShareModal({ onClose, projectId }: { onClose: () => void; projec
           {/* Comments toggle */}
           <button
             type="button"
-            onClick={() => setAllowComments((v) => !v)}
+            onClick={toggleComments}
             className="flex items-center gap-3 rounded-sm border border-border bg-background px-3 py-2.5 text-left transition-colors hover:border-foreground/30"
           >
             <CheckBox checked={allowComments} />

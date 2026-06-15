@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { InfiniteCanvas } from '@/components/canvas/infinite-canvas'
 import { Frame } from '@/components/canvas/frame'
 import { ONBOARDING_GROUPS } from '@/components/portal/portal-onboarding'
@@ -14,6 +14,7 @@ import {
   Trash,
   X,
 } from '@/components/icons'
+import { supabase } from '@/lib/supabase'
 
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
   <span className="text-[10px] font-semibold uppercase tracking-wider text-[#646970]">
@@ -38,31 +39,95 @@ const TARGETS = [
 
 type RelevantLink = { id: string; label: string; url: string }
 
-const INITIAL_LINKS: RelevantLink[] = [
-  { id: 'l1', label: 'Signed contract', url: 'https://drive.example.com/contract' },
-  { id: 'l2', label: 'Invoice #0042', url: 'https://billing.example.com/0042' },
-  { id: 'l3', label: 'Shared drive', url: 'https://drive.example.com/aurora' },
-]
-
 /**
  * Project view — the agency-side project overview placed on the canvas as two
  * frames: "Project Details" (identity, stage, target, calendar, links) and
  * "Onboarding" (the discovery questionnaire).
  */
-export function ProjectView() {
-  const [projectName, setProjectName] = useState('Aurora Press')
-  const [clientName, setClientName] = useState('Aurora Coffee Roasters')
-  const [stage, setStage] = useState<Stage>('design')
-  const [target, setTarget] = useState<string>('wordpress')
-  const [calendarLink, setCalendarLink] = useState('https://cal.com/aurorapress/intro')
+export function ProjectView({ projectId }: { projectId: string }) {
+  const [projectName, setProjectName] = useState('')
+  const [clientName, setClientName] = useState('')
+  const [stage, setStage] = useState<Stage>('onboarding')
+  const [target, setTarget] = useState<string>('ollie')
+  const [calendarLink, setCalendarLink] = useState('')
 
-  const [links, setLinks] = useState<RelevantLink[]>(INITIAL_LINKS)
+  const [links, setLinks] = useState<RelevantLink[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftLabel, setDraftLabel] = useState('')
   const [draftUrl, setDraftUrl] = useState('')
   const [adding, setAdding] = useState(false)
 
   const [onboarding, setOnboarding] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(true)
+
+  // Load project from DB
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    supabase
+      .from('projects')
+      .select('name, client_name, stage, target, calendar_link, relevant_links')
+      .eq('id', projectId)
+      .single()
+      .then(({ data }) => {
+        if (cancelled) return
+        if (data) {
+          setProjectName(data.name ?? '')
+          setClientName(data.client_name ?? '')
+          setStage((data.stage as Stage) ?? 'onboarding')
+          setTarget(data.target ?? 'ollie')
+          setCalendarLink(data.calendar_link ?? '')
+          setLinks((data.relevant_links as RelevantLink[]) ?? [])
+        }
+        setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [projectId])
+
+  // Debounced save
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const save = useCallback(
+    (patch: Record<string, unknown>) => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
+        supabase
+          .from('projects')
+          .update({ ...patch, updated_at: new Date().toISOString() })
+          .eq('id', projectId)
+          .then()
+      }, 800)
+    },
+    [projectId],
+  )
+
+  const handleProjectName = (v: string) => {
+    setProjectName(v)
+    save({ name: v })
+  }
+  const handleClientName = (v: string) => {
+    setClientName(v)
+    save({ client_name: v })
+  }
+  const handleStage = (s: Stage) => {
+    setStage(s)
+    save({ stage: s })
+  }
+  const handleTarget = (t: string) => {
+    setTarget(t)
+    save({ target: t })
+  }
+  const handleCalendarLink = (v: string) => {
+    setCalendarLink(v)
+    save({ calendar_link: v })
+  }
+
+  const saveLinks = useCallback(
+    (newLinks: RelevantLink[]) => {
+      setLinks(newLinks)
+      save({ relevant_links: newLinks })
+    },
+    [save],
+  )
 
   const stageIndex = STAGES.indexOf(stage)
 
@@ -92,18 +157,29 @@ export function ProjectView() {
     const url = draftUrl.trim()
     if (!label || !url) return
     if (adding) {
-      setLinks((prev) => [...prev, { id: `l${Date.now()}`, label, url }])
+      const newLinks = [...links, { id: `l${Date.now()}`, label, url }]
+      saveLinks(newLinks)
     } else if (editingId) {
-      setLinks((prev) =>
-        prev.map((l) => (l.id === editingId ? { ...l, label, url } : l)),
+      const newLinks = links.map((l) =>
+        l.id === editingId ? { ...l, label, url } : l,
       )
+      saveLinks(newLinks)
     }
     cancelDraft()
   }
 
   const removeLink = (id: string) => {
-    setLinks((prev) => prev.filter((l) => l.id !== id))
+    const newLinks = links.filter((l) => l.id !== id)
+    saveLinks(newLinks)
     if (editingId === id) cancelDraft()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <span className="text-[13px] text-muted-foreground">Loading project...</span>
+      </div>
+    )
   }
 
   return (
@@ -119,7 +195,7 @@ export function ProjectView() {
                   <FieldLabel>Project name</FieldLabel>
                   <input
                     value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
+                    onChange={(e) => handleProjectName(e.target.value)}
                     className="w-full rounded-sm border border-input bg-background px-2.5 py-2 text-[13px] text-foreground outline-none focus:border-primary"
                   />
                 </label>
@@ -127,7 +203,7 @@ export function ProjectView() {
                   <FieldLabel>Client name</FieldLabel>
                   <input
                     value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
+                    onChange={(e) => handleClientName(e.target.value)}
                     className="w-full rounded-sm border border-input bg-background px-2.5 py-2 text-[13px] text-foreground outline-none focus:border-primary"
                   />
                 </label>
@@ -144,7 +220,7 @@ export function ProjectView() {
                       <button
                         key={s}
                         type="button"
-                        onClick={() => setStage(s)}
+                        onClick={() => handleStage(s)}
                         aria-pressed={isCurrent}
                         className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-[12px] font-medium capitalize transition-colors ${
                           isCurrent
@@ -176,7 +252,7 @@ export function ProjectView() {
                       <button
                         key={t.value}
                         type="button"
-                        onClick={() => setTarget(t.value)}
+                        onClick={() => handleTarget(t.value)}
                         aria-pressed={selected}
                         className={`flex items-center gap-3 rounded-sm border px-3 py-2.5 text-left transition-colors ${
                           selected
@@ -215,7 +291,7 @@ export function ProjectView() {
                 <div className="flex items-center gap-2">
                   <input
                     value={calendarLink}
-                    onChange={(e) => setCalendarLink(e.target.value)}
+                    onChange={(e) => handleCalendarLink(e.target.value)}
                     placeholder="https://cal.com/your-handle/intro"
                     className="w-full rounded-sm border border-input bg-background px-2.5 py-2 text-[13px] text-foreground outline-none focus:border-primary"
                   />

@@ -19,6 +19,8 @@ import {
 } from '@/lib/design-system'
 import { type Page } from '@/lib/sitemap'
 import { supabase } from '@/lib/supabase'
+import { useMockupsLoader } from '@/lib/mockups'
+import { useContentFormLoader } from '@/lib/content-forms'
 
 type DbPage = {
   id: string
@@ -48,6 +50,10 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [ds, setDs] = useState<DesignSystem>(DEFAULT_DESIGN_SYSTEM)
   const [pages, setPages] = useState<Page[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Load mockups and content form for this project
+  useMockupsLoader(projectId)
+  useContentFormLoader(projectId)
 
   // Load DS + pages from Supabase on mount / project change
   useEffect(() => {
@@ -82,7 +88,11 @@ export function Workspace({ projectId }: { projectId: string }) {
     }
 
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      if (dsTimerRef.current) clearTimeout(dsTimerRef.current)
+      if (pagesTimerRef.current) clearTimeout(pagesTimerRef.current)
+    }
   }, [projectId])
 
   // Debounced save for design system
@@ -115,11 +125,12 @@ export function Workspace({ projectId }: { projectId: string }) {
             .from('pages')
             .update({ sections: p.sections as unknown as Record<string, unknown>[], updated_at: new Date().toISOString() })
             .eq('id', p.id)
+            .eq('project_id', projectId)
             .then()
         }
       }, 800)
     },
-    [],
+    [projectId],
   )
 
   if (loading) {
@@ -137,9 +148,9 @@ export function Workspace({ projectId }: { projectId: string }) {
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
       <Topbar view={view} onViewChange={setView} />
       <div className="relative min-h-0 flex-1">
-        {view === 'Project' && <ProjectView />}
+        {view === 'Project' && <ProjectView projectId={projectId} />}
         {view === 'Style' && <StyleView ds={ds} setDs={saveDs} />}
-        {view === 'Content' && <ContentView pages={pages} />}
+        {view === 'Content' && <ContentView pages={pages} projectId={projectId} />}
         {view === 'Sitemap' && (
           <BuildView pages={pages} setPages={savePages} ds={ds} subView="sitemap" />
         )}
@@ -147,7 +158,7 @@ export function Workspace({ projectId }: { projectId: string }) {
           <BuildView pages={pages} setPages={savePages} ds={ds} subView="wireframe" />
         )}
         {view === 'Mockup' && <MockupView />}
-        {view === 'Client View' && <ClientView />}
+        {view === 'Client View' && <ClientView projectId={projectId} />}
 
         <div className="absolute right-4 top-4 z-[60]">
           <CanvasActions
@@ -159,7 +170,7 @@ export function Workspace({ projectId }: { projectId: string }) {
       </div>
 
       {shareOpen && <ShareModal onClose={() => setShareOpen(false)} projectId={projectId} />}
-      {commentsOpen && <CommentsPane onClose={() => setCommentsOpen(false)} />}
+      {commentsOpen && <CommentsPane onClose={() => setCommentsOpen(false)} projectId={projectId} />}
     </div>
     </ToastProvider>
   )

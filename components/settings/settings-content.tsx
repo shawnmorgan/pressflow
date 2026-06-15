@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Check, TypeIcon, Ruler, Layers, Upload, Trash } from '@/components/icons'
+import { supabase } from '@/lib/supabase'
 
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
   <span className="text-[10px] font-semibold uppercase tracking-wider text-[#646970]">
@@ -28,8 +29,24 @@ const BUILDERS = [
   { label: 'Headless (REST + Next.js)', value: 'headless', available: false },
 ]
 
-export function SettingsContent() {
-  const [projectName, setProjectName] = useState('Aurora Press')
+export function SettingsContent({ projectId }: { projectId?: string }) {
+  const [projectName, setProjectName] = useState('')
+
+  useEffect(() => {
+    if (!projectId) return
+    let cancelled = false
+    supabase
+      .from('projects')
+      .select('name')
+      .eq('id', projectId)
+      .single()
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        setProjectName(data.name ?? '')
+      })
+    return () => { cancelled = true }
+  }, [projectId])
+
   const [baseFont, setBaseFont] = useState(16)
   const [ratio, setRatio] = useState(1.25)
   const [spacingUnit, setSpacingUnit] = useState(4)

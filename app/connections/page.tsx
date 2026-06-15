@@ -3,9 +3,11 @@
 import Link from 'next/link'
 import { ArrowLeft } from '@/components/icons'
 import { ConnectionsContent } from '@/components/connections/connections-content'
+import { AuthGuard } from '@/components/auth-guard'
 
 export default function ConnectionsPage() {
   return (
+    <AuthGuard>
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
       {/* Header */}
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-4">
@@ -26,5 +28,6 @@ export default function ConnectionsPage() {
         </div>
       </div>
     </div>
+    </AuthGuard>
   )
 }

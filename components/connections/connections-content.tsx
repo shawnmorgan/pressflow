@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sparkles, Server, Copy, Check, ExternalLink } from '@/components/icons'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth-context'
 
 type Status = 'connected' | 'disconnected'
 
@@ -31,57 +33,115 @@ type Provider = {
   sub: string
   initial: string
   status: Status
+  dbId?: string
 }
 
-const INITIAL_PROVIDERS: Provider[] = [
-  {
-    id: 'claude',
-    name: 'Claude',
-    sub: 'Anthropic API key · Sonnet & Opus',
-    initial: 'C',
-    status: 'connected',
-  },
-  {
-    id: 'claude-code',
-    name: 'Claude Code',
-    sub: 'Local agent handoff',
-    initial: 'CC',
-    status: 'disconnected',
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI / Codex',
-    sub: 'OpenAI API key · GPT & Codex',
-    initial: 'O',
-    status: 'disconnected',
-  },
-  {
-    id: 'custom',
-    name: 'Custom API key',
-    sub: 'Any OpenAI-compatible endpoint',
-    initial: 'K',
-    status: 'disconnected',
-  },
+const AI_PROVIDER_DEFS = [
+  { kind: 'claude', name: 'Claude', sub: 'Anthropic API key · Sonnet & Opus', initial: 'C' },
+  { kind: 'claude-code', name: 'Claude Code', sub: 'Local agent handoff', initial: 'CC' },
+  { kind: 'openai', name: 'OpenAI / Codex', sub: 'OpenAI API key · GPT & Codex', initial: 'O' },
+  { kind: 'custom', name: 'Custom API key', sub: 'Any OpenAI-compatible endpoint', initial: 'K' },
 ]
 
 const MCP_ENDPOINT = 'https://mcp.pressflow.dev/p/aurora-press/sse'
 
 export function ConnectionsContent() {
-  const [providers, setProviders] = useState<Provider[]>(INITIAL_PROVIDERS)
-  const [wpConnected, setWpConnected] = useState(true)
+  const { user } = useAuth()
+  const [providers, setProviders] = useState<Provider[]>([])
+  const [wpConnected, setWpConnected] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [accountId, setAccountId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [toggling, setToggling] = useState<string | null>(null)
 
-  const toggleProvider = (id: string) =>
-    setProviders((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              status: p.status === 'connected' ? 'disconnected' : 'connected',
-            }
-          : p,
-      ),
-    )
+  // Load connections from DB
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    async function load() {
+      if (!user) return
+      // Get account_id
+      const { data: membership } = await supabase
+        .from('account_members')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .single()
+
+      if (cancelled || !membership) return
+      setAccountId(membership.account_id)
+
+      // Load account-level connections (AI providers)
+      const { data: conns } = await supabase
+        .from('connections')
+        .select('id, kind, label, config')
+        .eq('account_id', membership.account_id)
+
+      if (cancelled) return
+
+      const connMap = new Map<string, { id: string; config: any }>()
+      conns?.forEach((c: any) => connMap.set(c.kind, { id: c.id, config: c.config }))
+
+      setProviders(
+        AI_PROVIDER_DEFS.map((def) => {
+          const conn = connMap.get(def.kind)
+          return {
+            id: def.kind,
+            name: def.name,
+            sub: def.sub,
+            initial: def.initial,
+            status: conn ? 'connected' : 'disconnected',
+            dbId: conn?.id,
+          }
+        }),
+      )
+
+      // Check for WordPress connection
+      const wpConn = conns?.find((c: any) => c.kind === 'wordpress')
+      setWpConnected(!!wpConn)
+      setLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [user])
+
+  const toggleProvider = async (kind: string) => {
+    if (!accountId || toggling) return
+    const provider = providers.find((p) => p.id === kind)
+    if (!provider) return
+    setToggling(kind)
+
+    if (provider.status === 'connected' && provider.dbId) {
+      // Disconnect — delete
+      await supabase.from('connections').delete().eq('id', provider.dbId)
+      setProviders((prev) =>
+        prev.map((p) =>
+          p.id === kind ? { ...p, status: 'disconnected', dbId: undefined } : p,
+        ),
+      )
+    } else {
+      // Connect — insert
+      const { data } = await supabase
+        .from('connections')
+        .insert({
+          account_id: accountId,
+          kind,
+          label: provider.name,
+          config: {},
+        })
+        .select('id')
+        .single()
+
+      if (data) {
+        setProviders((prev) =>
+          prev.map((p) =>
+            p.id === kind ? { ...p, status: 'connected', dbId: data.id } : p,
+          ),
+        )
+      }
+    }
+    setToggling(null)
+  }
 
   const copyEndpoint = async () => {
     try {
@@ -91,6 +151,18 @@ export function ConnectionsContent() {
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 1600)
+  }
+
+  if (loading) {
+    return (
+      <section>
+        <h2 className="flex items-center gap-2 text-[14px] font-semibold text-foreground">
+          <Sparkles className="size-4 text-muted-foreground" />
+          AI / Compute
+        </h2>
+        <p className="mt-3 text-[13px] text-muted-foreground">Loading connections...</p>
+      </section>
+    )
   }
 
   return (
@@ -131,13 +203,14 @@ export function ConnectionsContent() {
                 <button
                   type="button"
                   onClick={() => toggleProvider(p.id)}
-                  className={`w-full rounded-sm border px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                  disabled={toggling === p.id}
+                  className={`w-full rounded-sm border px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50 ${
                     connected
                       ? 'border-border bg-card text-foreground hover:border-foreground/30'
                       : 'border-primary bg-primary text-primary-foreground hover:bg-primary-hover'
                   }`}
                 >
-                  {connected ? 'Disconnect' : 'Connect'}
+                  {toggling === p.id ? 'Updating...' : connected ? 'Disconnect' : 'Connect'}
                 </button>
               </div>
             )
