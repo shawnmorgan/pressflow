@@ -157,6 +157,7 @@ function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: 
   return (
     <Frame
       title={form.name}
+      frameId={`form-${form.id}`}
       width={680}
       headerRight={
         <div className="flex items-center gap-1">

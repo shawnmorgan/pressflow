@@ -2,17 +2,19 @@
 
 import { useRef, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useCanvasScale } from '@/components/canvas/infinite-canvas'
+import { useFramePositions } from '@/lib/frame-positions'
 
 /**
  * A titled frame placed in canvas space — a labeled card with a header strip.
  * Used for stylesheet / page / export frames on the infinite canvas.
  *
  * The titlebar is a drag handle: click-and-hold to reposition the frame on the
- * canvas. The offset is stored locally (CSS translate) so the parent layout is
- * unaffected.
+ * canvas. The offset is persisted in a workspace-level context keyed by
+ * `frameId` (falls back to `title`) so positions survive view switches.
  */
 export function Frame({
   title,
+  frameId,
   badge,
   width,
   headerRight,
@@ -21,6 +23,7 @@ export function Frame({
   active = false,
 }: {
   title: string
+  frameId?: string
   badge?: ReactNode
   width: number
   headerRight?: ReactNode
@@ -28,10 +31,13 @@ export function Frame({
   onTitleClick?: () => void
   active?: boolean
 }) {
+  const id = frameId ?? title
+  const positions = useFramePositions()
   const scale = useCanvasScale()
   const scaleRef = useRef(scale)
   scaleRef.current = scale
-  const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+
+  const [offset, setOffset] = useState(() => positions.get(id))
   const [dragging, setDragging] = useState(false)
   const dragRef = useRef<{
     startX: number
@@ -41,9 +47,13 @@ export function Frame({
   } | null>(null)
   const movedRef = useRef(false)
 
+  // Sync offset back to the persistent store whenever it changes
+  useEffect(() => {
+    positions.set(id, offset)
+  }, [id, offset, positions])
+
   const onHeaderDown = useCallback(
     (e: React.MouseEvent) => {
-      // Only primary button; ignore if clicking a button/input inside the header
       if (e.button !== 0) return
       const target = e.target as HTMLElement
       if (target.closest('button, a, input, select, textarea')) return
@@ -71,7 +81,6 @@ export function Frame({
       if (!movedRef.current && Math.abs(dx) + Math.abs(dy) > 3) {
         movedRef.current = true
       }
-      // Divide by canvas scale so the frame moves 1:1 with the cursor
       setOffset({
         x: dragRef.current.origX + dx / scaleRef.current,
         y: dragRef.current.origY + dy / scaleRef.current,
@@ -92,7 +101,6 @@ export function Frame({
   }, [dragging])
 
   const handleTitleClick = () => {
-    // Only fire onTitleClick if we didn't drag
     if (!movedRef.current && onTitleClick) onTitleClick()
   }
 

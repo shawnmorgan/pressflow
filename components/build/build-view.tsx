@@ -272,6 +272,7 @@ export function BuildView({ pages, setPages, ds, subView }: Props) {
             return (
               <Frame
                 title={page.name}
+                frameId={`page-${page.id}`}
                 width={FRAME_WIDTH}
                 active={isActive}
                 onTitleClick={() => {

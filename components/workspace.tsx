@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase'
 import { useMockupsLoader } from '@/lib/mockups'
 import { useContentFormLoader } from '@/lib/content-forms'
 import { useUndoRedo } from '@/lib/undo-redo'
+import { FramePositionsProvider } from '@/lib/frame-positions'
 
 type DbPage = {
   id: string
@@ -43,7 +44,9 @@ function dbPageToPage(row: DbPage): Page {
 export function Workspace({ projectId }: { projectId: string }) {
   return (
     <ToastProvider>
-      <WorkspaceInner projectId={projectId} />
+      <FramePositionsProvider>
+        <WorkspaceInner projectId={projectId} />
+      </FramePositionsProvider>
     </ToastProvider>
   )
 }
