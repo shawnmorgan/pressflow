@@ -192,16 +192,26 @@ export function BuildView({ pages, setPages, ds, subView }: Props) {
             No pages yet
           </h2>
           <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-            Import HTML, push a sitemap via MCP, or generate from a prompt to
-            start composing pages.
+            Add a new page to start building your sitemap, or import sections
+            from an HTML file.
           </p>
-          <button
-            type="button"
-            onClick={() => setImportOpen(true)}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Import or generate
-          </button>
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => addPage(null)}
+              className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Add new page
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-2 text-[13px] font-medium text-foreground transition-colors hover:border-foreground/30"
+            >
+              <Upload className="size-3.5" />
+              Import
+            </button>
+          </div>
         </div>
         {importOpen && (
           <ImportPanel

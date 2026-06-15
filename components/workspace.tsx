@@ -11,7 +11,7 @@ import { MockupView } from '@/components/mockup/mockup-view'
 import { ClientView } from '@/components/client/client-view'
 import { ShareModal } from '@/components/share/share-modal'
 import { CommentsPane } from '@/components/comments/comments-pane'
-import { ToastProvider } from '@/components/ui/toast'
+import { ToastProvider, useToast } from '@/components/ui/toast'
 import {
   DEFAULT_DESIGN_SYSTEM,
   type DesignSystem,
@@ -43,6 +43,15 @@ function dbPageToPage(row: DbPage): Page {
 }
 
 export function Workspace({ projectId }: { projectId: string }) {
+  return (
+    <ToastProvider>
+      <WorkspaceInner projectId={projectId} />
+    </ToastProvider>
+  )
+}
+
+function WorkspaceInner({ projectId }: { projectId: string }) {
+  const { showToast } = useToast()
   const [view, setView] = useState<CanvasView>('Project')
   const [shareOpen, setShareOpen] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(false)
@@ -117,7 +126,6 @@ export function Workspace({ projectId }: { projectId: string }) {
   const loadedRef = useRef(false)
 
   useEffect(() => {
-    // Skip persisting on initial load
     if (!loadedRef.current) {
       if (!loading) loadedRef.current = true
       return
@@ -128,9 +136,9 @@ export function Workspace({ projectId }: { projectId: string }) {
         .from('design_systems')
         .update({ tokens: ds as unknown as Record<string, unknown>, updated_at: new Date().toISOString() })
         .eq('project_id', projectId)
-        .then()
+        .then(() => showToast('Saved'))
     }, 800)
-  }, [ds, projectId, loading])
+  }, [ds, projectId, loading, showToast])
 
   // Debounced persist for pages
   const pagesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -142,17 +150,17 @@ export function Workspace({ projectId }: { projectId: string }) {
       return
     }
     if (pagesTimerRef.current) clearTimeout(pagesTimerRef.current)
-    pagesTimerRef.current = setTimeout(() => {
+    pagesTimerRef.current = setTimeout(async () => {
       for (const p of pages) {
-        supabase
+        await supabase
           .from('pages')
           .update({ sections: p.sections as unknown as Record<string, unknown>[], updated_at: new Date().toISOString() })
           .eq('id', p.id)
           .eq('project_id', projectId)
-          .then()
       }
+      showToast('Saved')
     }, 800)
-  }, [pages, projectId, loading])
+  }, [pages, projectId, loading, showToast])
 
   // Undo/redo — pick the right stack based on current view
   const canUndo = view === 'Style' ? canUndoDs : (view === 'Sitemap' || view === 'Wireframe') ? canUndoPages : false
@@ -194,7 +202,6 @@ export function Workspace({ projectId }: { projectId: string }) {
   }
 
   return (
-    <ToastProvider>
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
       <Topbar
         view={view}
@@ -219,12 +226,10 @@ export function Workspace({ projectId }: { projectId: string }) {
         )}
         {view === 'Mockup' && <MockupView />}
         {view === 'Client View' && <ClientView projectId={projectId} />}
-
       </div>
 
       {shareOpen && <ShareModal onClose={() => setShareOpen(false)} projectId={projectId} />}
       {commentsOpen && <CommentsPane onClose={() => setCommentsOpen(false)} projectId={projectId} />}
     </div>
-    </ToastProvider>
   )
 }

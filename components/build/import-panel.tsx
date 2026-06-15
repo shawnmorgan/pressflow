@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Upload, Plug, ArrowRight, CircleCheck } from '@/components/icons'
-import { parseHtmlToSections, MCP_SOURCES } from '@/lib/import'
+import { useState, useRef } from 'react'
+import { X, Upload, ArrowRight, CircleCheck } from '@/components/icons'
+import { parseHtmlToSections } from '@/lib/import'
 import type { Section } from '@/lib/sitemap'
 
 type Props = {
@@ -17,7 +17,27 @@ const SAMPLE = `<header class="navbar">...</header>
 <footer class="footer">© 2026</footer>`
 
 export function ImportPanel({ onClose, onImport }: Props) {
-  const [tab, setTab] = useState<'html' | 'mcp'>('html')
+  const [html, setHtml] = useState('')
+  const [result, setResult] = useState<{ recognized: number; opaque: number } | null>(null)
+  const [pending, setPending] = useState<Section[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const analyze = (source: string) => {
+    const { sections, recognized, opaque } = parseHtmlToSections(source)
+    setPending(sections)
+    setResult({ recognized, opaque })
+  }
+
+  const handleFileUpload = async (files: FileList) => {
+    const allHtml: string[] = []
+    for (const file of Array.from(files)) {
+      const text = await file.text()
+      allHtml.push(text)
+    }
+    const combined = allHtml.join('\n')
+    setHtml(combined)
+    analyze(combined)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -34,7 +54,7 @@ export function ImportPanel({ onClose, onImport }: Props) {
         className="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-sm border border-border bg-card shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-[15px] font-semibold text-foreground">Import sections</h2>
+          <h2 className="text-[15px] font-semibold text-foreground">Import HTML</h2>
           <button
             type="button"
             onClick={onClose}
@@ -45,189 +65,107 @@ export function ImportPanel({ onClose, onImport }: Props) {
           </button>
         </div>
 
-        {/* tabs */}
-        <div className="flex gap-1 border-b border-border px-3 pt-3">
-          <TabButton active={tab === 'html'} onClick={() => setTab('html')} icon={<Upload className="size-3.5" />}>
-            Import HTML
-          </TabButton>
-          <TabButton active={tab === 'mcp'} onClick={() => setTab('mcp')} icon={<Plug className="size-3.5" />}>
-            Pull from MCP
-          </TabButton>
-        </div>
-
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {tab === 'html' ? (
-            <HtmlImport onImport={onImport} onClose={onClose} />
-          ) : (
-            <McpImport onImport={onImport} onClose={onClose} />
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TabButton({
-  active,
-  onClick,
-  icon,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-t-sm border-b-2 px-3 py-2 text-[12px] font-medium transition-colors ${
-        active
-          ? 'border-primary text-foreground'
-          : 'border-transparent text-muted-foreground hover:text-foreground'
-      }`}
-    >
-      {icon}
-      {children}
-    </button>
-  )
-}
-
-function HtmlImport({
-  onImport,
-  onClose,
-}: {
-  onImport: (sections: Section[], mode: 'append' | 'replace') => void
-  onClose: () => void
-}) {
-  const [html, setHtml] = useState('')
-  const [result, setResult] = useState<{ recognized: number; opaque: number } | null>(null)
-  const [pending, setPending] = useState<Section[]>([])
-
-  const analyze = () => {
-    const { sections, recognized, opaque } = parseHtmlToSections(html)
-    setPending(sections)
-    setResult({ recognized, opaque })
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-[12px] leading-relaxed text-muted-foreground">
-        Paste HTML markup. Recognized blocks become editable sections; anything
-        unrecognized is preserved as an opaque section.
-      </p>
-      <textarea
-        value={html}
-        onChange={(e) => {
-          setHtml(e.target.value)
-          setResult(null)
-        }}
-        rows={8}
-        spellCheck={false}
-        placeholder={SAMPLE}
-        className="w-full resize-none rounded-sm border border-input bg-background px-3 py-2 font-mono text-[12px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
-      />
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setHtml(SAMPLE)}
-          className="text-[11px] font-medium text-primary hover:underline"
-        >
-          Use sample
-        </button>
-        <button
-          type="button"
-          onClick={analyze}
-          disabled={!html.trim()}
-          className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30 disabled:opacity-40"
-        >
-          Analyze
-        </button>
-      </div>
-
-      {result && (
-        <div className="flex flex-col gap-3 rounded-sm border border-border bg-background p-3">
-          <div className="flex items-center gap-2 text-[12px] text-foreground">
-            <CircleCheck className="size-4 text-primary" />
-            Found <strong>{pending.length}</strong> blocks ·{' '}
-            <span className="text-muted-foreground">
-              {result.recognized} recognized, {result.opaque} opaque
-            </span>
-          </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col gap-3">
+            {/* File upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".html,.htm"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files?.length) handleFileUpload(e.target.files)
+                e.target.value = ''
+              }}
+            />
             <button
               type="button"
-              onClick={() => {
-                onImport(pending, 'append')
-                onClose()
-              }}
-              className="rounded-sm border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-foreground hover:border-foreground/30"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex w-full flex-col items-center gap-2 rounded-sm border border-dashed border-border bg-background px-3 py-5 text-center transition-colors hover:border-foreground/30"
             >
-              Append to page
+              <Upload className="size-5 text-muted-foreground" />
+              <span className="text-[12px] font-medium text-foreground">
+                Upload HTML files
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                .html or .htm files
+              </span>
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                onImport(pending, 'replace')
-                onClose()
-              }}
-              className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover"
-            >
-              Replace page
-              <ArrowRight className="size-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
-function McpImport({
-  onImport,
-  onClose,
-}: {
-  onImport: (sections: Section[], mode: 'append' | 'replace') => void
-  onClose: () => void
-}) {
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-[12px] leading-relaxed text-muted-foreground">
-        Pull a structured sitemap from a connected agent. These map directly to
-        recognized, editable sections.
-      </p>
-      <ul className="flex flex-col gap-2">
-        {MCP_SOURCES.map((src) => (
-          <li
-            key={src.id}
-            className="flex items-center justify-between gap-3 rounded-sm border border-border bg-background p-3"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <Plug className="size-3.5 text-primary" />
-                <span className="truncate text-[13px] font-medium text-foreground">
-                  {src.name}
-                </span>
-              </div>
-              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                {src.detail}
-              </p>
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-[11px] font-medium text-muted-foreground">or paste markup</span>
+              <span className="h-px flex-1 bg-border" />
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                onImport(src.build(), 'replace')
-                onClose()
+
+            {/* Paste HTML */}
+            <textarea
+              value={html}
+              onChange={(e) => {
+                setHtml(e.target.value)
+                setResult(null)
               }}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover"
-            >
-              Pull
-              <ArrowRight className="size-3.5" />
-            </button>
-          </li>
-        ))}
-      </ul>
+              rows={8}
+              spellCheck={false}
+              placeholder={SAMPLE}
+              className="w-full resize-none rounded-sm border border-input bg-background px-3 py-2 font-mono text-[12px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setHtml(SAMPLE)}
+                className="text-[11px] font-medium text-primary hover:underline"
+              >
+                Use sample
+              </button>
+              <button
+                type="button"
+                onClick={() => analyze(html)}
+                disabled={!html.trim()}
+                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30 disabled:opacity-40"
+              >
+                Analyze
+              </button>
+            </div>
+
+            {result && (
+              <div className="flex flex-col gap-3 rounded-sm border border-border bg-background p-3">
+                <div className="flex items-center gap-2 text-[12px] text-foreground">
+                  <CircleCheck className="size-4 text-primary" />
+                  Found <strong>{pending.length}</strong> blocks ·{' '}
+                  <span className="text-muted-foreground">
+                    {result.recognized} recognized, {result.opaque} opaque
+                  </span>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onImport(pending, 'append')
+                      onClose()
+                    }}
+                    className="rounded-sm border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-foreground hover:border-foreground/30"
+                  >
+                    Append to page
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onImport(pending, 'replace')
+                      onClose()
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover"
+                  >
+                    Replace page
+                    <ArrowRight className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

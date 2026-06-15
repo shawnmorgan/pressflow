@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Check, Share, MessageSquare, Bell, Undo, Redo } from '@/components/icons'
+import { Share, MessageSquare, Bell, Undo, Redo } from '@/components/icons'
 import { ProjectSwitcher } from '@/components/project-switcher'
 import { ViewTabs, type CanvasView } from '@/components/canvas/view-tabs'
 import { AccountMenu } from '@/components/account-menu'
@@ -41,32 +41,23 @@ export function Topbar({
 
   return (
     <header className="relative flex h-14 shrink-0 items-center gap-4 border-b border-border bg-card px-4">
-      {/* Left — project switcher */}
-      <div className="flex items-center">
+      {/* Left — project switcher + undo/redo */}
+      <div className="flex items-center gap-1">
         <ProjectSwitcher />
-      </div>
-
-      {/* Center — main view switcher */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <ViewTabs view={view} onChange={onViewChange} />
-      </div>
-
-      <div className="flex-1" />
-
-      {/* Right — status & actions */}
-      <div className="flex shrink-0 items-center gap-2">
-        {/* Undo / Redo */}
         {onUndo && (
-          <button
-            type="button"
-            onClick={onUndo}
-            disabled={!canUndo}
-            aria-label="Undo"
-            title="Undo (⌘Z)"
-            className="flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-          >
-            <Undo className="size-4" />
-          </button>
+          <>
+            <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={!canUndo}
+              aria-label="Undo"
+              title="Undo (⌘Z)"
+              className="flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+            >
+              <Undo className="size-4" />
+            </button>
+          </>
         )}
         {onRedo && (
           <button
@@ -80,14 +71,17 @@ export function Topbar({
             <Redo className="size-4" />
           </button>
         )}
+      </div>
 
-        <span className="hidden items-center gap-1.5 text-[12px] text-muted-foreground md:inline-flex">
-          <Check className="size-3.5 text-[#00a32a]" />
-          Saved
-        </span>
+      {/* Center — main view switcher */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <ViewTabs view={view} onChange={onViewChange} />
+      </div>
 
-        <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
+      <div className="flex-1" />
 
+      {/* Right — actions */}
+      <div className="flex shrink-0 items-center gap-2">
         {/* Notification bell */}
         <div ref={bellRef} className="relative">
           <button

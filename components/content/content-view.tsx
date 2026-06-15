@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { InfiniteCanvas } from '@/components/canvas/infinite-canvas'
 import { Frame } from '@/components/canvas/frame'
 import { TemplatePicker } from '@/components/content-builder/template-picker'
 import { SectionCard } from '@/components/content-builder/section-card'
+import { AssetsFrame } from '@/components/content/assets-frame'
 import {
   addSection,
   deleteForm,
@@ -20,7 +21,7 @@ import {
 import {
   Check,
   FileCode,
-  ImageIcon,
+  Library,
   Pencil,
   Plus,
   Share,
@@ -140,219 +141,13 @@ export function ContentView({ projectId }: { projectId?: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Assets frame                                                        */
-/* ------------------------------------------------------------------ */
-
-type Asset = {
-  id: string
-  kind: string
-  label: string | null
-  original_path: string
-  mime: string | null
-  bytes: number | null
-  created_at: string
-  signedUrl?: string
-}
-
-function AssetsFrame({ projectId }: { projectId?: string }) {
-  const [assets, setAssets] = useState<Asset[]>([])
-  const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Load assets from DB + generate signed URLs for images
-  const loadAssets = useCallback(async () => {
-    if (!projectId) return
-    const { data } = await supabase
-      .from('assets')
-      .select('id, kind, label, original_path, mime, bytes, created_at')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false })
-
-    if (!data) { setLoading(false); return }
-
-    // Get signed URLs for image assets
-    const imagePaths = data.filter((a: any) => a.kind === 'image').map((a: any) => a.original_path)
-    let urlMap = new Map<string, string>()
-    if (imagePaths.length > 0) {
-      const { data: signed } = await supabase.storage
-        .from('assets')
-        .createSignedUrls(imagePaths, 3600)
-      signed?.forEach((s: any) => {
-        if (s.signedUrl) urlMap.set(s.path!, s.signedUrl)
-      })
-    }
-
-    setAssets(
-      data.map((a: any) => ({
-        ...a,
-        signedUrl: urlMap.get(a.original_path),
-      }))
-    )
-    setLoading(false)
-  }, [projectId])
-
-  useEffect(() => { loadAssets() }, [loadAssets])
-
-  // Listen for uploads triggered from the icon-stack button
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const files = (e as CustomEvent).detail as FileList
-      if (files?.length) uploadFiles(Array.from(files))
-    }
-    window.addEventListener('pressflow:upload-assets', handler)
-    return () => window.removeEventListener('pressflow:upload-assets', handler)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
-
-  const uploadFiles = async (files: File[]) => {
-    if (!projectId || files.length === 0) return
-    setUploading(true)
-
-    for (const file of files) {
-      const ext = file.name.split('.').pop() ?? ''
-      const storagePath = `${projectId}/${crypto.randomUUID()}.${ext}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('assets')
-        .upload(storagePath, file, { contentType: file.type })
-
-      if (uploadError) {
-        console.error('Upload failed:', uploadError.message)
-        continue
-      }
-
-      const isImage = file.type.startsWith('image/')
-      await supabase.from('assets').insert({
-        project_id: projectId,
-        kind: isImage ? 'image' : 'file',
-        label: file.name,
-        original_path: storagePath,
-        mime: file.type,
-        bytes: file.size,
-      })
-    }
-
-    setUploading(false)
-    loadAssets()
-  }
-
-  const removeAsset = async (asset: Asset) => {
-    await supabase.storage.from('assets').remove([asset.original_path])
-    await supabase.from('assets').delete().eq('id', asset.id)
-    setAssets((prev) => prev.filter((a) => a.id !== asset.id))
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    if (e.dataTransfer.files.length) uploadFiles(Array.from(e.dataTransfer.files))
-  }
-
-  const formatSize = (bytes: number | null) => {
-    if (!bytes) return ''
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / 1048576).toFixed(1)} MB`
-  }
-
-  return (
-    <Frame title="Assets" width={320}>
-      <div
-        className={`flex flex-col gap-3 p-4 ${dragOver ? 'ring-2 ring-inset ring-primary/40' : ''}`}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-      >
-        {/* Upload area */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*,application/pdf,video/*,.zip,.txt,.csv"
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files?.length) uploadFiles(Array.from(e.target.files))
-            e.target.value = ''
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading || !projectId}
-          className="flex w-full flex-col items-center gap-2 rounded-sm border border-dashed border-border bg-card px-3 py-5 text-center transition-colors hover:border-foreground/30 disabled:opacity-50"
-        >
-          <Upload className="size-5 text-muted-foreground" />
-          <span className="text-[12px] font-medium text-foreground">
-            {uploading ? 'Uploading...' : 'Upload assets'}
-          </span>
-          <span className="text-[11px] text-muted-foreground">
-            or drag & drop files here
-          </span>
-        </button>
-
-        {/* Asset list */}
-        {loading ? (
-          <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
-        ) : assets.length === 0 ? (
-          <p className="py-4 text-center text-[12px] text-muted-foreground">
-            No assets yet. Upload logos, images, or files.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {assets.map((asset) => (
-              <div
-                key={asset.id}
-                className="group flex items-center gap-3 rounded-sm border border-border bg-card p-2"
-              >
-                {/* Thumbnail or icon */}
-                {asset.kind === 'image' && asset.signedUrl ? (
-                  <img
-                    src={asset.signedUrl}
-                    alt={asset.label ?? ''}
-                    className="size-10 shrink-0 rounded-sm border border-border object-cover"
-                  />
-                ) : (
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-border bg-muted">
-                    <Download className="size-4 text-muted-foreground" />
-                  </span>
-                )}
-                {/* Info */}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12px] font-medium text-foreground">
-                    {asset.label ?? 'Untitled'}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {formatSize(asset.bytes)}
-                    {asset.mime ? ` · ${asset.mime.split('/')[1]?.toUpperCase()}` : ''}
-                  </p>
-                </div>
-                {/* Remove */}
-                <button
-                  type="button"
-                  onClick={() => removeAsset(asset)}
-                  className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-all hover:text-[#d63638] group-hover:opacity-100"
-                  aria-label="Remove asset"
-                >
-                  <Trash className="size-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </Frame>
-  )
-}
-
-/* ------------------------------------------------------------------ */
 /* Content form frame                                                   */
 /* ------------------------------------------------------------------ */
 
 function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: string }) {
   const [editingName, setEditingName] = useState(false)
   const [savingTemplate, setSavingTemplate] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
   const [draftSaved, setDraftSaved] = useState(false)
   const { showToast } = useToast()
 
@@ -360,7 +155,32 @@ function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: 
   const total = form.sections.length
 
   return (
-    <Frame title={form.name} width={680}>
+    <Frame
+      title={form.name}
+      width={680}
+      headerRight={
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setSavingTemplate(true)}
+            aria-label="Save as template"
+            title="Save as template"
+            className="flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Library className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            aria-label="Export PDF"
+            title="Export PDF"
+            className="flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Download className="size-3.5" />
+          </button>
+        </div>
+      }
+    >
       <div className="flex flex-col gap-5 p-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
@@ -457,21 +277,6 @@ function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: 
               {draftSaved ? 'Saved' : 'Save draft'}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setSavingTemplate(true)}
-            className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
-          >
-            Save as template
-          </button>
-          <button
-            type="button"
-            disabled
-            title="PDF export coming soon"
-            className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-2 text-[12px] font-medium text-muted-foreground opacity-50"
-          >
-            Export PDF
-          </button>
           {form.sent && submitted < total && (
             <button
               type="button"
@@ -501,6 +306,9 @@ function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: 
 
         {savingTemplate && (
           <SaveTemplateModal formId={form.id} onClose={() => setSavingTemplate(false)} projectId={projectId} />
+        )}
+        {exportOpen && (
+          <ExportPdfModal onClose={() => setExportOpen(false)} />
         )}
       </div>
     </Frame>
@@ -624,6 +432,51 @@ function SaveTemplateModal({ formId, onClose, projectId }: { formId: string; onC
             className="rounded-sm bg-primary px-3.5 py-1.5 text-[12px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Save template
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Export PDF modal                                                     */
+/* ------------------------------------------------------------------ */
+
+function ExportPdfModal({ onClose }: { onClose: () => void }) {
+  const { showToast } = useToast()
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-sm border border-border bg-card p-5 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-[15px] font-semibold text-foreground">Export PDF</h3>
+        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+          Download this form and its collected content as a PDF document.
+        </p>
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-sm border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              showToast('PDF export coming soon')
+              onClose()
+            }}
+            className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3.5 py-1.5 text-[12px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <Download className="size-3.5" />
+            Download PDF
           </button>
         </div>
       </div>

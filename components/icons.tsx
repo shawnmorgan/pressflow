@@ -524,3 +524,31 @@ export function Filter(props: IconProps) {
     </svg>
   )
 }
+
+export function Film(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+      <line x1="7" x2="7" y1="3" y2="21" />
+      <line x1="17" x2="17" y1="3" y2="21" />
+      <line x1="3" x2="7" y1="7.5" y2="7.5" />
+      <line x1="3" x2="7" y1="12" y2="12" />
+      <line x1="3" x2="7" y1="16.5" y2="16.5" />
+      <line x1="17" x2="21" y1="7.5" y2="7.5" />
+      <line x1="17" x2="21" y1="12" y2="12" />
+      <line x1="17" x2="21" y1="16.5" y2="16.5" />
+    </svg>
+  )
+}
+
+export function FileText(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a1 1 0 0 0 1 1h3" />
+      <line x1="10" x2="8" y1="13" y2="13" />
+      <line x1="16" x2="8" y1="17" y2="17" />
+      <line x1="14" x2="8" y1="9" y2="9" />
+    </svg>
+  )
+}

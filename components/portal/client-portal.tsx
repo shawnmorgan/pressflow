@@ -8,6 +8,7 @@ import {
   Palette,
   Sparkles,
   TypeIcon,
+  Upload,
 } from '@/components/icons'
 import { type PortalComment } from '@/components/portal/portal-ui'
 import { PortalOverview } from '@/components/portal/portal-overview'
@@ -15,11 +16,13 @@ import { PortalStyleGuide } from '@/components/portal/portal-style-guide'
 import { PortalContent, type ContentStatus } from '@/components/portal/portal-content'
 import { PortalWireframe } from '@/components/portal/portal-wireframe'
 import { PortalMockups } from '@/components/portal/portal-mockups'
+import { PortalAssets } from '@/components/portal/portal-assets'
 
 export type PortalSectionKey =
   | 'overview'
   | 'style'
   | 'content'
+  | 'assets'
   | 'wireframe'
   | 'mockups'
 
@@ -27,6 +30,7 @@ const NAV: { key: PortalSectionKey; label: string; icon: typeof Briefcase }[] = 
   { key: 'overview', label: 'Overview', icon: Briefcase },
   { key: 'style', label: 'Style Guide', icon: Palette },
   { key: 'content', label: 'Content', icon: TypeIcon },
+  { key: 'assets', label: 'Assets', icon: Upload },
   { key: 'wireframe', label: 'Wireframe', icon: ImageIcon },
   { key: 'mockups', label: 'Mockups', icon: Sparkles },
 ]
@@ -138,6 +142,7 @@ export function ClientPortal({ project }: { project: ClientProject }) {
               }
             />
           )}
+          {active === 'assets' && <PortalAssets token={project.token} />}
           {active === 'wireframe' && (
             <PortalWireframe
               project={project}
