@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Topbar } from '@/components/topbar'
 import { type CanvasView } from '@/components/canvas/view-tabs'
-import { CanvasActions } from '@/components/canvas/canvas-actions'
 import { ProjectView } from '@/components/project/project-view'
 import { StyleView } from '@/components/style/style-view'
 import { ContentView } from '@/components/content/content-view'
@@ -21,6 +20,7 @@ import { type Page } from '@/lib/sitemap'
 import { supabase } from '@/lib/supabase'
 import { useMockupsLoader } from '@/lib/mockups'
 import { useContentFormLoader } from '@/lib/content-forms'
+import { useUndoRedo } from '@/lib/undo-redo'
 
 type DbPage = {
   id: string
@@ -46,10 +46,27 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [view, setView] = useState<CanvasView>('Project')
   const [shareOpen, setShareOpen] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(false)
-
-  const [ds, setDs] = useState<DesignSystem>(DEFAULT_DESIGN_SYSTEM)
-  const [pages, setPages] = useState<Page[]>([])
   const [loading, setLoading] = useState(true)
+
+  const {
+    state: ds,
+    setState: setDsUndo,
+    reset: resetDs,
+    undo: undoDs,
+    redo: redoDs,
+    canUndo: canUndoDs,
+    canRedo: canRedoDs,
+  } = useUndoRedo<DesignSystem>(DEFAULT_DESIGN_SYSTEM)
+
+  const {
+    state: pages,
+    setState: setPagesUndo,
+    reset: resetPages,
+    undo: undoPages,
+    redo: redoPages,
+    canUndo: canUndoPages,
+    canRedo: canRedoPages,
+  } = useUndoRedo<Page[]>([])
 
   // Load mockups and content form for this project
   useMockupsLoader(projectId)
@@ -77,11 +94,11 @@ export function Workspace({ projectId }: { projectId: string }) {
       if (cancelled) return
 
       if (dsRes.data?.tokens) {
-        setDs(dsRes.data.tokens as DesignSystem)
+        resetDs(dsRes.data.tokens as DesignSystem)
       }
 
       if (pagesRes.data) {
-        setPages(pagesRes.data.map((r: DbPage) => dbPageToPage(r)))
+        resetPages(pagesRes.data.map((r: DbPage) => dbPageToPage(r)))
       }
 
       setLoading(false)
@@ -93,45 +110,78 @@ export function Workspace({ projectId }: { projectId: string }) {
       if (dsTimerRef.current) clearTimeout(dsTimerRef.current)
       if (pagesTimerRef.current) clearTimeout(pagesTimerRef.current)
     }
-  }, [projectId])
+  }, [projectId, resetDs, resetPages])
 
-  // Debounced save for design system
+  // Debounced persist for design system
   const dsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveDs = useCallback(
-    (newDs: DesignSystem) => {
-      setDs(newDs)
-      if (dsTimerRef.current) clearTimeout(dsTimerRef.current)
-      dsTimerRef.current = setTimeout(() => {
+  const loadedRef = useRef(false)
+
+  useEffect(() => {
+    // Skip persisting on initial load
+    if (!loadedRef.current) {
+      if (!loading) loadedRef.current = true
+      return
+    }
+    if (dsTimerRef.current) clearTimeout(dsTimerRef.current)
+    dsTimerRef.current = setTimeout(() => {
+      supabase
+        .from('design_systems')
+        .update({ tokens: ds as unknown as Record<string, unknown>, updated_at: new Date().toISOString() })
+        .eq('project_id', projectId)
+        .then()
+    }, 800)
+  }, [ds, projectId, loading])
+
+  // Debounced persist for pages
+  const pagesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pagesLoadedRef = useRef(false)
+
+  useEffect(() => {
+    if (!pagesLoadedRef.current) {
+      if (!loading) pagesLoadedRef.current = true
+      return
+    }
+    if (pagesTimerRef.current) clearTimeout(pagesTimerRef.current)
+    pagesTimerRef.current = setTimeout(() => {
+      for (const p of pages) {
         supabase
-          .from('design_systems')
-          .update({ tokens: newDs as unknown as Record<string, unknown>, updated_at: new Date().toISOString() })
+          .from('pages')
+          .update({ sections: p.sections as unknown as Record<string, unknown>[], updated_at: new Date().toISOString() })
+          .eq('id', p.id)
           .eq('project_id', projectId)
           .then()
-      }, 800)
-    },
-    [projectId],
-  )
+      }
+    }, 800)
+  }, [pages, projectId, loading])
 
-  // Debounced save for pages
-  const pagesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const savePages = useCallback(
-    (newPages: Page[]) => {
-      setPages(newPages)
-      if (pagesTimerRef.current) clearTimeout(pagesTimerRef.current)
-      pagesTimerRef.current = setTimeout(() => {
-        // Update each page's sections individually
-        for (const p of newPages) {
-          supabase
-            .from('pages')
-            .update({ sections: p.sections as unknown as Record<string, unknown>[], updated_at: new Date().toISOString() })
-            .eq('id', p.id)
-            .eq('project_id', projectId)
-            .then()
-        }
-      }, 800)
-    },
-    [projectId],
-  )
+  // Undo/redo — pick the right stack based on current view
+  const canUndo = view === 'Style' ? canUndoDs : (view === 'Sitemap' || view === 'Wireframe') ? canUndoPages : false
+  const canRedo = view === 'Style' ? canRedoDs : (view === 'Sitemap' || view === 'Wireframe') ? canRedoPages : false
+
+  const handleUndo = useCallback(() => {
+    if (view === 'Style') undoDs()
+    else if (view === 'Sitemap' || view === 'Wireframe') undoPages()
+  }, [view, undoDs, undoPages])
+
+  const handleRedo = useCallback(() => {
+    if (view === 'Style') redoDs()
+    else if (view === 'Sitemap' || view === 'Wireframe') redoPages()
+  }, [view, redoDs, redoPages])
+
+  // Keyboard shortcuts: Cmd+Z / Cmd+Shift+Z
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      e.preventDefault()
+      if (e.shiftKey) handleRedo()
+      else handleUndo()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [handleUndo, handleRedo])
 
   if (loading) {
     return (
@@ -146,27 +196,30 @@ export function Workspace({ projectId }: { projectId: string }) {
   return (
     <ToastProvider>
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
-      <Topbar view={view} onViewChange={setView} />
+      <Topbar
+        view={view}
+        onViewChange={setView}
+        onShare={() => setShareOpen(true)}
+        onComments={() => setCommentsOpen((v) => !v)}
+        commentsActive={commentsOpen}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+      />
       <div className="relative min-h-0 flex-1">
         {view === 'Project' && <ProjectView projectId={projectId} />}
-        {view === 'Style' && <StyleView ds={ds} setDs={saveDs} />}
+        {view === 'Style' && <StyleView ds={ds} setDs={setDsUndo} />}
         {view === 'Content' && <ContentView projectId={projectId} />}
         {view === 'Sitemap' && (
-          <BuildView pages={pages} setPages={savePages} ds={ds} subView="sitemap" />
+          <BuildView pages={pages} setPages={setPagesUndo} ds={ds} subView="sitemap" />
         )}
         {view === 'Wireframe' && (
-          <BuildView pages={pages} setPages={savePages} ds={ds} subView="wireframe" />
+          <BuildView pages={pages} setPages={setPagesUndo} ds={ds} subView="wireframe" />
         )}
         {view === 'Mockup' && <MockupView />}
         {view === 'Client View' && <ClientView projectId={projectId} />}
 
-        <div className="absolute right-4 top-4 z-[60]">
-          <CanvasActions
-            onShare={() => setShareOpen(true)}
-            onComments={() => setCommentsOpen((v) => !v)}
-            commentsActive={commentsOpen}
-          />
-        </div>
       </div>
 
       {shareOpen && <ShareModal onClose={() => setShareOpen(false)} projectId={projectId} />}

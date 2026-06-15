@@ -4,12 +4,14 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { X, Link, Check, Copy } from '@/components/icons'
 import { supabase } from '@/lib/supabase'
 
-type ShareKey = 'style' | 'sitemap' | 'wireframe'
+type ShareKey = 'style' | 'content' | 'sitemap' | 'wireframe' | 'mockups'
 
 const SHARE_OPTIONS: { key: ShareKey; label: string; hint: string }[] = [
   { key: 'style', label: 'Style guide', hint: 'Colors, type, components' },
+  { key: 'content', label: 'Content', hint: 'Content collection forms' },
   { key: 'sitemap', label: 'Sitemap', hint: 'Page & section structure' },
   { key: 'wireframe', label: 'Wireframe', hint: 'Styled page previews' },
+  { key: 'mockups', label: 'Mockups', hint: 'Design mockups' },
 ]
 
 function getShareUrl(token: string) {
@@ -20,8 +22,10 @@ function getShareUrl(token: string) {
 export function ShareModal({ onClose, projectId }: { onClose: () => void; projectId: string }) {
   const [selected, setSelected] = useState<Record<ShareKey, boolean>>({
     style: true,
+    content: false,
     sitemap: true,
     wireframe: false,
+    mockups: false,
   })
   const [allowComments, setAllowComments] = useState(true)
   const [copied, setCopied] = useState(false)
@@ -49,8 +53,10 @@ export function ShareModal({ onClose, projectId }: { onClose: () => void; projec
         const views = (existing.visible_views as string[]) ?? []
         setSelected({
           style: views.includes('style'),
+          content: views.includes('content'),
           sitemap: views.includes('sitemap'),
           wireframe: views.includes('wireframe'),
+          mockups: views.includes('mockups'),
         })
         setAllowComments(existing.can_comment ?? true)
       }

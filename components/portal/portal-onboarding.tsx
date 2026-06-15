@@ -32,51 +32,6 @@ export const ONBOARDING_GROUPS: OnboardingGroup[] = [
       { key: 'website', label: 'Current website', placeholder: 'https://…', kind: 'short' },
     ],
   },
-  {
-    title: 'Tools & systems',
-    fields: [
-      {
-        key: 'tools',
-        label: 'Platforms & tools you use',
-        placeholder: 'Booking, POS, email, CRM, socials…',
-        kind: 'long',
-        hint: 'Anything we should integrate with or keep in mind.',
-      },
-    ],
-  },
-  {
-    title: 'Offers',
-    fields: [
-      {
-        key: 'offers',
-        label: 'Products & services',
-        placeholder: 'What you sell and how you want it presented.',
-        kind: 'long',
-      },
-    ],
-  },
-  {
-    title: 'Competitors',
-    fields: [
-      {
-        key: 'competitors',
-        label: 'Competitors & sites you admire',
-        placeholder: 'Links or names — what you like or want to avoid.',
-        kind: 'long',
-      },
-    ],
-  },
-  {
-    title: 'Positioning',
-    fields: [
-      {
-        key: 'positioning',
-        label: 'What makes you different',
-        placeholder: 'Your audience, voice, and the one thing to get across.',
-        kind: 'long',
-      },
-    ],
-  },
 ]
 
 const ALL_KEYS = ONBOARDING_GROUPS.flatMap((g) => g.fields.map((f) => f.key))

@@ -82,12 +82,6 @@ export function ClientPortal({ project }: { project: ClientProject }) {
               {project.projectName} · client portal
             </div>
           </div>
-          <a
-            href={`mailto:${project.agency.contactEmail}`}
-            className="hidden shrink-0 rounded-sm border border-border bg-background px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30 sm:inline-block"
-          >
-            Contact us
-          </a>
         </div>
 
         {/* Section nav */}

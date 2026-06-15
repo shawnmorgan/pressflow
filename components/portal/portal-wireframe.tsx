@@ -6,7 +6,6 @@ import {
   CommentThread,
   FieldLabel,
   SectionIntro,
-  StatusPill,
   type PortalComment,
 } from '@/components/portal/portal-ui'
 
@@ -24,7 +23,6 @@ export function PortalWireframe({
       <SectionIntro
         title="Wireframes"
         blurb="Low-fidelity layouts showing the structure of each page before visual design. Leave notes — we’ll fold them into the mockups."
-        action={<StatusPill tone="accent">Read only</StatusPill>}
       />
 
       <div className="flex flex-col gap-8">

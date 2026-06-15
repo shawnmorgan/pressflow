@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { InfiniteCanvas } from '@/components/canvas/infinite-canvas'
 import { Frame } from '@/components/canvas/frame'
 import { TemplatePicker } from '@/components/content-builder/template-picker'
@@ -8,6 +8,7 @@ import { SectionCard } from '@/components/content-builder/section-card'
 import {
   addSection,
   deleteForm,
+  forceSaveForm,
   renameForm,
   saveAsTemplate,
   sendToClient,
@@ -26,7 +27,10 @@ import {
   Trash,
   Upload,
   X,
+  Clock,
+  Download,
 } from '@/components/icons'
+import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
 
@@ -39,14 +43,31 @@ const Label = ({ children }: { children: React.ReactNode }) => (
 export function ContentView({ projectId }: { projectId?: string }) {
   const forms = useContentForms()
   const [addFormOpen, setAddFormOpen] = useState(false)
+  const assetInputRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="relative flex h-full">
+      {/* Hidden file input for icon-stack upload */}
+      <input
+        ref={assetInputRef}
+        type="file"
+        multiple
+        accept="image/*,application/pdf,video/*,.zip,.txt,.csv"
+        className="hidden"
+        onChange={(e) => {
+          // Dispatch a custom event that AssetsFrame listens for
+          if (e.target.files?.length) {
+            window.dispatchEvent(new CustomEvent('pressflow:upload-assets', { detail: e.target.files }))
+            e.target.value = ''
+          }
+        }}
+      />
       {/* Left context icon stack */}
       <div className="absolute left-4 top-4 z-[55] flex flex-col gap-2">
         <button
           type="button"
           title="Add asset"
+          onClick={() => assetInputRef.current?.click()}
           className="flex size-9 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
         >
           <Upload className="size-4" />
@@ -64,7 +85,7 @@ export function ContentView({ projectId }: { projectId?: string }) {
       <InfiniteCanvas>
         <div className="flex gap-8 p-24 pl-32">
           {/* Assets frame */}
-          <AssetsFrame />
+          <AssetsFrame projectId={projectId} />
 
           {/* Content form frames */}
           {forms.map((form) => (
@@ -119,30 +140,207 @@ export function ContentView({ projectId }: { projectId?: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Assets frame (stub — no storage internals)                          */
+/* Assets frame                                                        */
 /* ------------------------------------------------------------------ */
 
-function AssetsFrame() {
+type Asset = {
+  id: string
+  kind: string
+  label: string | null
+  original_path: string
+  mime: string | null
+  bytes: number | null
+  created_at: string
+  signedUrl?: string
+}
+
+function AssetsFrame({ projectId }: { projectId?: string }) {
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Load assets from DB + generate signed URLs for images
+  const loadAssets = useCallback(async () => {
+    if (!projectId) return
+    const { data } = await supabase
+      .from('assets')
+      .select('id, kind, label, original_path, mime, bytes, created_at')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+
+    if (!data) { setLoading(false); return }
+
+    // Get signed URLs for image assets
+    const imagePaths = data.filter((a: any) => a.kind === 'image').map((a: any) => a.original_path)
+    let urlMap = new Map<string, string>()
+    if (imagePaths.length > 0) {
+      const { data: signed } = await supabase.storage
+        .from('assets')
+        .createSignedUrls(imagePaths, 3600)
+      signed?.forEach((s: any) => {
+        if (s.signedUrl) urlMap.set(s.path!, s.signedUrl)
+      })
+    }
+
+    setAssets(
+      data.map((a: any) => ({
+        ...a,
+        signedUrl: urlMap.get(a.original_path),
+      }))
+    )
+    setLoading(false)
+  }, [projectId])
+
+  useEffect(() => { loadAssets() }, [loadAssets])
+
+  // Listen for uploads triggered from the icon-stack button
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const files = (e as CustomEvent).detail as FileList
+      if (files?.length) uploadFiles(Array.from(files))
+    }
+    window.addEventListener('pressflow:upload-assets', handler)
+    return () => window.removeEventListener('pressflow:upload-assets', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
+
+  const uploadFiles = async (files: File[]) => {
+    if (!projectId || files.length === 0) return
+    setUploading(true)
+
+    for (const file of files) {
+      const ext = file.name.split('.').pop() ?? ''
+      const storagePath = `${projectId}/${crypto.randomUUID()}.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('assets')
+        .upload(storagePath, file, { contentType: file.type })
+
+      if (uploadError) {
+        console.error('Upload failed:', uploadError.message)
+        continue
+      }
+
+      const isImage = file.type.startsWith('image/')
+      await supabase.from('assets').insert({
+        project_id: projectId,
+        kind: isImage ? 'image' : 'file',
+        label: file.name,
+        original_path: storagePath,
+        mime: file.type,
+        bytes: file.size,
+      })
+    }
+
+    setUploading(false)
+    loadAssets()
+  }
+
+  const removeAsset = async (asset: Asset) => {
+    await supabase.storage.from('assets').remove([asset.original_path])
+    await supabase.from('assets').delete().eq('id', asset.id)
+    setAssets((prev) => prev.filter((a) => a.id !== asset.id))
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    if (e.dataTransfer.files.length) uploadFiles(Array.from(e.dataTransfer.files))
+  }
+
+  const formatSize = (bytes: number | null) => {
+    if (!bytes) return ''
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / 1048576).toFixed(1)} MB`
+  }
+
   return (
     <Frame title="Assets" width={320}>
-      <div className="flex flex-col items-center gap-4 px-5 py-10 text-center">
-        <ImageIcon className="size-8 text-muted-foreground/50" />
-        <div>
-          <p className="text-[13px] font-medium text-foreground">Project assets</p>
-          <p className="mt-1 text-[12px] text-muted-foreground">
-            Logos, images, and files uploaded by you or the client appear here.
-          </p>
-        </div>
+      <div
+        className={`flex flex-col gap-3 p-4 ${dragOver ? 'ring-2 ring-inset ring-primary/40' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+      >
+        {/* Upload area */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,application/pdf,video/*,.zip,.txt,.csv"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.length) uploadFiles(Array.from(e.target.files))
+            e.target.value = ''
+          }}
+        />
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-sm border border-dashed border-border bg-card px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || !projectId}
+          className="flex w-full flex-col items-center gap-2 rounded-sm border border-dashed border-border bg-card px-3 py-5 text-center transition-colors hover:border-foreground/30 disabled:opacity-50"
         >
-          <Upload className="size-4" />
-          Upload asset
+          <Upload className="size-5 text-muted-foreground" />
+          <span className="text-[12px] font-medium text-foreground">
+            {uploading ? 'Uploading...' : 'Upload assets'}
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            or drag & drop files here
+          </span>
         </button>
-        <p className="text-[11px] text-muted-foreground/70">
-          Storage wiring coming soon.
-        </p>
+
+        {/* Asset list */}
+        {loading ? (
+          <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
+        ) : assets.length === 0 ? (
+          <p className="py-4 text-center text-[12px] text-muted-foreground">
+            No assets yet. Upload logos, images, or files.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {assets.map((asset) => (
+              <div
+                key={asset.id}
+                className="group flex items-center gap-3 rounded-sm border border-border bg-card p-2"
+              >
+                {/* Thumbnail or icon */}
+                {asset.kind === 'image' && asset.signedUrl ? (
+                  <img
+                    src={asset.signedUrl}
+                    alt={asset.label ?? ''}
+                    className="size-10 shrink-0 rounded-sm border border-border object-cover"
+                  />
+                ) : (
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-border bg-muted">
+                    <Download className="size-4 text-muted-foreground" />
+                  </span>
+                )}
+                {/* Info */}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12px] font-medium text-foreground">
+                    {asset.label ?? 'Untitled'}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {formatSize(asset.bytes)}
+                    {asset.mime ? ` · ${asset.mime.split('/')[1]?.toUpperCase()}` : ''}
+                  </p>
+                </div>
+                {/* Remove */}
+                <button
+                  type="button"
+                  onClick={() => removeAsset(asset)}
+                  className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-all hover:text-[#d63638] group-hover:opacity-100"
+                  aria-label="Remove asset"
+                >
+                  <Trash className="size-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Frame>
   )
@@ -155,6 +353,8 @@ function AssetsFrame() {
 function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: string }) {
   const [editingName, setEditingName] = useState(false)
   const [savingTemplate, setSavingTemplate] = useState(false)
+  const [draftSaved, setDraftSaved] = useState(false)
+  const { showToast } = useToast()
 
   const submitted = form.sections.filter((s) => s.status === 'submitted').length
   const total = form.sections.length
@@ -243,6 +443,20 @@ function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: 
 
         {/* Actions */}
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+          {!form.sent && (
+            <button
+              type="button"
+              onClick={() => {
+                forceSaveForm(form.id)
+                setDraftSaved(true)
+                setTimeout(() => setDraftSaved(false), 1800)
+              }}
+              className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
+            >
+              {draftSaved ? <Check className="size-3.5" /> : null}
+              {draftSaved ? 'Saved' : 'Save draft'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setSavingTemplate(true)}
@@ -258,6 +472,16 @@ function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: 
           >
             Export PDF
           </button>
+          {form.sent && submitted < total && (
+            <button
+              type="button"
+              onClick={() => showToast('Reminders coming soon')}
+              className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
+            >
+              <Clock className="size-3.5" />
+              Send reminder
+            </button>
+          )}
           {form.sent ? (
             <span className="inline-flex items-center gap-1.5 rounded-sm border border-primary bg-primary/[0.06] px-3 py-2 text-[12px] font-semibold text-primary">
               <Check className="size-3.5" />

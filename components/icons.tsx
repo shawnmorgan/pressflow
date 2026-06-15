@@ -480,3 +480,47 @@ export function Link(props: IconProps) {
     </svg>
   )
 }
+
+export function Bell(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </svg>
+  )
+}
+
+export function Undo(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <path d="M3 7v6h6" />
+      <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+    </svg>
+  )
+}
+
+export function Redo(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <path d="M21 7v6h-6" />
+      <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" />
+    </svg>
+  )
+}
+
+export function Reply(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <polyline points="9 10 4 15 9 20" />
+      <path d="M20 4v7a4 4 0 0 1-4 4H4" />
+    </svg>
+  )
+}
+
+export function Filter(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </svg>
+  )
+}

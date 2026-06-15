@@ -301,6 +301,25 @@ function debounceSaveForm(formId: string) {
   )
 }
 
+/** Immediately flush the debounced save for a form (save draft). */
+export function forceSaveForm(formId: string) {
+  if (saveTimers.has(formId)) clearTimeout(saveTimers.get(formId)!)
+  saveTimers.delete(formId)
+  const form = forms.find((f) => f.id === formId)
+  if (!form) return
+  supabase
+    .from('content_forms')
+    .update({
+      name: form.name,
+      sections: form.sections as unknown as Record<string, unknown>[],
+      sent: form.sent,
+      sent_at: form.sentAt ? new Date(form.sentAt).toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', formId)
+    .then()
+}
+
 /** Load all content forms for a project from DB. */
 export async function loadForms(projectId: string): Promise<ContentForm[]> {
   const { data } = await supabase

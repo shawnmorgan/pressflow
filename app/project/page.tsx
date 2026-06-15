@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
   Briefcase,
@@ -52,6 +53,16 @@ const INITIAL_LINKS: RelevantLink[] = [
 ]
 
 export default function ProjectDetailsPage() {
+  return (
+    <Suspense>
+      <ProjectDetailsInner />
+    </Suspense>
+  )
+}
+
+function ProjectDetailsInner() {
+  const params = useSearchParams()
+  const projectId = params.get('project') ?? ''
   const [projectName, setProjectName] = useState('Aurora Press')
   const [clientName, setClientName] = useState('Aurora Coffee Roasters')
   const [stage, setStage] = useState<Stage>('design')
@@ -118,7 +129,7 @@ export default function ProjectDetailsPage() {
       {/* Header */}
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-4">
         <Link
-          href="/editor"
+          href={projectId ? `/editor?project=${projectId}` : '/'}
           aria-label="Back to workspace"
           className="flex size-8 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
         >
@@ -129,14 +140,14 @@ export default function ProjectDetailsPage() {
         </h1>
         <div className="flex-1" />
         <Link
-          href="/project/content"
+          href={`/project/content${projectId ? `?project=${projectId}` : ''}`}
           className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
         >
           <Heading className="size-3.5" />
           Content
         </Link>
         <Link
-          href="/project/mockups"
+          href={`/project/mockups${projectId ? `?project=${projectId}` : ''}`}
           className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
         >
           <Sparkles className="size-3.5" />

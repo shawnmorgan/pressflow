@@ -10,7 +10,7 @@ import {
   resolveRole,
   sizePx,
 } from '@/lib/design-system'
-import { FieldLabel, SectionIntro, StatusPill } from '@/components/portal/portal-ui'
+import { FieldLabel, SectionIntro } from '@/components/portal/portal-ui'
 
 export function PortalStyleGuide({ project }: { project: ClientProject }) {
   const ds = project.ds
@@ -22,7 +22,6 @@ export function PortalStyleGuide({ project }: { project: ClientProject }) {
       <SectionIntro
         title="Style guide"
         blurb="The design system the team is building for your brand. This is a read-only reference — leave any notes in the mockups."
-        action={<StatusPill tone="accent">Read only</StatusPill>}
       />
 
       {/* Colors */}
