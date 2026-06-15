@@ -91,16 +91,16 @@ insert into account_members (account_id, user_id, role) values
 on conflict (account_id, user_id) do nothing;
 
 -- 5. Projects
-insert into projects (id, account_id, name, target, stage, site_type, client_name, client_domain, calendar_link, relevant_links) values
-  ('${AURORA_ID}', '${ACCOUNT_ID}', 'Aurora Press', 'ollie', 'approval', 'static', 'Aurora Coffee Roasters', 'auroracoffee.com', 'https://cal.com/series5/aurora', '${esc([
+insert into projects (id, account_id, name, target, stage, client_name, client_domain, calendar_link, relevant_links) values
+  ('${AURORA_ID}', '${ACCOUNT_ID}', 'Aurora Press', 'ollie', 'approval', 'Aurora Coffee Roasters', 'auroracoffee.com', 'https://cal.com/series5/aurora', '${esc([
     { id: 'l1', label: 'Signed proposal', url: 'https://drive.example.com/aurora-proposal' },
     { id: 'l2', label: 'Invoice #0042', url: 'https://billing.example.com/0042' },
     { id: 'l3', label: 'Shared drive', url: 'https://drive.example.com/aurora' },
     { id: 'l4', label: 'Kickoff notes', url: 'https://notes.example.com/aurora-kickoff' },
   ])}'),
-  ('${NORTHWIND_ID}', '${ACCOUNT_ID}', 'Northwind Traders', 'ollie', 'onboarding', 'static', null, null, null, '[]'),
-  ('${MORI_ID}', '${ACCOUNT_ID}', 'Studio Mori', 'ollie', 'design', 'static', null, null, null, '[]'),
-  ('${HARBOR_ID}', '${ACCOUNT_ID}', 'Harbor Health', 'ollie', 'content', 'static', null, null, null, '[]')
+  ('${NORTHWIND_ID}', '${ACCOUNT_ID}', 'Northwind Traders', 'ollie', 'onboarding', null, null, null, '[]'),
+  ('${MORI_ID}', '${ACCOUNT_ID}', 'Studio Mori', 'ollie', 'design', null, null, null, '[]'),
+  ('${HARBOR_ID}', '${ACCOUNT_ID}', 'Harbor Health', 'ollie', 'content', null, null, null, '[]')
 on conflict (id) do nothing;
 
 -- 6. Design system (Aurora only — fully seeded)

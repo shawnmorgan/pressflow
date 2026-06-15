@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
 
 type Status = 'connected' | 'disconnected'
+type WpConnection = { id: string; label: string; url: string } | null
 
 function StatusPill({ status }: { status: Status }) {
   const connected = status === 'connected'
@@ -48,7 +49,7 @@ const MCP_ENDPOINT = 'https://mcp.pressflow.dev/p/aurora-press/sse'
 export function ConnectionsContent() {
   const { user } = useAuth()
   const [providers, setProviders] = useState<Provider[]>([])
-  const [wpConnected, setWpConnected] = useState(false)
+  const [wpConn, setWpConn] = useState<WpConnection>(null)
   const [copied, setCopied] = useState(false)
   const [accountId, setAccountId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -97,8 +98,8 @@ export function ConnectionsContent() {
       )
 
       // Check for WordPress connection
-      const wpConn = conns?.find((c: any) => c.kind === 'wordpress')
-      setWpConnected(!!wpConn)
+      const wp = conns?.find((c: any) => c.kind === 'wordpress')
+      setWpConn(wp ? { id: wp.id, label: wp.label ?? '', url: wp.config?.url ?? '' } : null)
       setLoading(false)
     }
     load()
@@ -230,7 +231,7 @@ export function ConnectionsContent() {
         </p>
 
         <div className="mt-4 rounded-sm border border-border bg-card">
-          {wpConnected ? (
+          {wpConn ? (
             <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-border bg-muted text-muted-foreground">
                 <Server className="size-5" />
@@ -238,32 +239,36 @@ export function ConnectionsContent() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-[13px] font-semibold text-foreground">
-                    staging.aurorapress.io
+                    {wpConn.label || wpConn.url || 'WordPress site'}
                   </span>
                   <StatusPill status="connected" />
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                  <span>
-                    Detected theme:{' '}
-                    <span className="font-medium text-foreground">Ollie</span>
-                  </span>
-                  <span className="text-border">·</span>
-                  <span>MCP handshake verified</span>
-                </div>
+                {wpConn.url && (
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                    <span className="truncate">{wpConn.url}</span>
+                  </div>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <a
-                  href="https://staging.aurorapress.io/wp-admin"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
-                >
-                  Open admin
-                  <ExternalLink className="size-3.5" />
-                </a>
+                {wpConn.url && (
+                  <a
+                    href={`${wpConn.url.replace(/\/$/, '')}/wp-admin`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
+                  >
+                    Open admin
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                )}
                 <button
                   type="button"
-                  onClick={() => setWpConnected(false)}
+                  onClick={async () => {
+                    if (wpConn.id) {
+                      await supabase.from('connections').delete().eq('id', wpConn.id)
+                    }
+                    setWpConn(null)
+                  }}
                   className="rounded-sm border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
                 >
                   Disconnect
@@ -287,20 +292,7 @@ export function ConnectionsContent() {
                   handoff.
                 </p>
               </div>
-              <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
-                <input
-                  type="url"
-                  placeholder="https://yoursite.com"
-                  className="w-full rounded-sm border border-input bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary sm:w-56"
-                />
-                <button
-                  type="button"
-                  onClick={() => setWpConnected(true)}
-                  className="shrink-0 rounded-sm border border-primary bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
-                >
-                  Authorize
-                </button>
-              </div>
+              <WpConnectForm accountId={accountId} onConnected={(conn) => setWpConn(conn)} />
             </div>
           )}
         </div>
@@ -345,5 +337,55 @@ export function ConnectionsContent() {
         </div>
       </section>
     </>
+  )
+}
+
+function WpConnectForm({
+  accountId,
+  onConnected,
+}: {
+  accountId: string | null
+  onConnected: (conn: WpConnection) => void
+}) {
+  const [url, setUrl] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleConnect = async () => {
+    if (!accountId || !url.trim()) return
+    setSaving(true)
+    const { data } = await supabase
+      .from('connections')
+      .insert({
+        account_id: accountId,
+        kind: 'wordpress',
+        label: url.replace(/^https?:\/\//, '').replace(/\/$/, ''),
+        config: { url: url.trim() },
+      })
+      .select('id')
+      .single()
+    setSaving(false)
+    if (data) {
+      onConnected({ id: data.id, label: url.replace(/^https?:\/\//, '').replace(/\/$/, ''), url: url.trim() })
+    }
+  }
+
+  return (
+    <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
+      <input
+        type="url"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="https://yoursite.com"
+        className="w-full rounded-sm border border-input bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary sm:w-56"
+      />
+      <button
+        type="button"
+        onClick={handleConnect}
+        disabled={saving || !url.trim()}
+        className="shrink-0 rounded-sm border border-primary bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-50"
+      >
+        {saving ? 'Saving...' : 'Authorize'}
+      </button>
+    </div>
   )
 }

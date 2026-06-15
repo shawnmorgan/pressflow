@@ -1,12 +1,11 @@
 import {
-  headingLevel,
   type Page,
-  type Section,
 } from '@/lib/sitemap'
 import {
   DEFAULT_DESIGN_SYSTEM,
   type DesignSystem,
 } from '@/lib/design-system'
+import { type FormSection } from '@/lib/content-forms'
 import { invokeEdgeFunction } from '@/lib/edge-functions'
 
 /* =========================================================================
@@ -64,6 +63,15 @@ export type AgencyBrand = {
   contactEmail: string
 }
 
+/** A content form as seen by the portal client. */
+export type PortalForm = {
+  id: string
+  kind: string
+  name: string
+  sections: FormSection[]
+  sent: boolean
+}
+
 export type ClientProject = {
   token: string
   agency: AgencyBrand
@@ -76,74 +84,8 @@ export type ClientProject = {
   links: RelevantLink[]
   pages: Page[]
   ds: DesignSystem
-}
-
-/* ---------- Content collection ---------- */
-
-export type ContentFieldKind = 'short' | 'long'
-export type ContentField = {
-  key: string
-  label: string
-  kind: ContentFieldKind
-  /** The agency's drafted starting value, pulled from the builder. */
-  draft: string
-}
-
-/**
- * Derive the editable copy fields for a section from its active elements.
- * This is what the client fills in / refines during content collection.
- */
-export function sectionContentFields(section: Section): ContentField[] {
-  const e = section.elements
-  const fields: ContentField[] = []
-  if (e.eyebrow.on)
-    fields.push({ key: 'eyebrow', label: 'Eyebrow', kind: 'short', draft: e.eyebrow.text })
-  if (e.heading.on)
-    fields.push({
-      key: 'heading',
-      label: `Heading (H${headingLevel(section)})`,
-      kind: 'short',
-      draft: e.heading.text,
-    })
-  if (e.subheading.on)
-    fields.push({ key: 'subheading', label: 'Subheading', kind: 'short', draft: e.subheading.text })
-  if (e.body.on)
-    fields.push({ key: 'body', label: 'Body copy', kind: 'long', draft: e.body.text })
-  e.buttons.forEach((b, i) =>
-    fields.push({
-      key: `button-${b.id}`,
-      label: `Button ${i + 1} label`,
-      kind: 'short',
-      draft: b.text,
-    }),
-  )
-  if (e.list.on)
-    e.list.items.forEach((item, i) =>
-      fields.push({ key: `list-${i}`, label: `List item ${i + 1}`, kind: 'short', draft: item }),
-    )
-  section.cards.forEach((c, i) => {
-    fields.push({
-      key: `card-${c.id}-title`,
-      label: `Item ${i + 1} title`,
-      kind: 'short',
-      draft: c.title,
-    })
-    if (c.text)
-      fields.push({
-        key: `card-${c.id}-text`,
-        label: `Item ${i + 1} detail`,
-        kind: 'long',
-        draft: c.text,
-      })
-  })
-  return fields
-}
-
-/** Sections that actually need client copy (skip structural-only blocks). */
-export function collectableSections(page: Page): Section[] {
-  return page.sections.filter(
-    (s) => s.type !== 'Navbar' && s.type !== 'Footer' && sectionContentFields(s).length > 0,
-  )
+  /** Free-form content forms (the new model). */
+  forms: PortalForm[]
 }
 
 /* ---------- Default agency brand (fallback) ---------- */
@@ -188,6 +130,16 @@ export async function resolveClientProject(
     contactEmail: data.agency?.contactEmail ?? DEFAULT_AGENCY.contactEmail,
   }
 
+  const forms: PortalForm[] = (data.forms ?? [])
+    .filter((f: any) => f.sent)
+    .map((f: any) => ({
+      id: f.id,
+      kind: f.kind ?? 'content',
+      name: f.name ?? 'Untitled',
+      sections: f.sections ?? [],
+      sent: true,
+    }))
+
   return {
     token: data.token,
     agency,
@@ -199,5 +151,6 @@ export async function resolveClientProject(
     links: (data.links as RelevantLink[]) ?? [],
     pages,
     ds,
+    forms,
   }
 }
