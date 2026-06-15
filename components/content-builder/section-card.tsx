@@ -50,7 +50,7 @@ export function SectionCard({
   const requiredCount = section.fields.filter((f) => f.required).length
 
   return (
-    <div className="overflow-hidden rounded-sm border border-border bg-card">
+    <div className="rounded-sm border border-border bg-card">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
         <button
