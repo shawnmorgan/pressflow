@@ -150,7 +150,7 @@ export function Workspace({ projectId }: { projectId: string }) {
       <div className="relative min-h-0 flex-1">
         {view === 'Project' && <ProjectView projectId={projectId} />}
         {view === 'Style' && <StyleView ds={ds} setDs={saveDs} />}
-        {view === 'Content' && <ContentView pages={pages} projectId={projectId} />}
+        {view === 'Content' && <ContentView projectId={projectId} />}
         {view === 'Sitemap' && (
           <BuildView pages={pages} setPages={savePages} ds={ds} subView="sitemap" />
         )}

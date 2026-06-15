@@ -1,18 +1,17 @@
 'use client'
 
 import { useSyncExternalStore, useEffect } from 'react'
-import { DEFAULT_PAGES, sectionLabel } from '@/lib/sitemap'
-import { collectableSections, sectionContentFields } from '@/lib/client-portal'
 import { supabase } from '@/lib/supabase'
 
 /* =========================================================================
- * Content forms — the agency-side, Content-Snare-style content collection
- * builder. Structure-aware (sitemap sections flow in) and template-driven
- * (site-type templates pre-load the sections that type of site needs).
+ * Content forms — free-form, Content-Snare-style question sets.
  *
- * This app has no backend; canonical data lives in module-level seeds. This
- * store follows the same pattern as lib/mockups.ts with a tiny subscribe
- * layer so the builder is reactive and custom templates persist per session.
+ * A content form is an arbitrary set of questions the agency writes for the
+ * client: "What services do you offer?", "Upload your logo," etc. Answers
+ * are stored structured and read by an agent (via MCP, later) to build the
+ * sitemap/wireframe. The app never maps answers to sections itself.
+ *
+ * Multiple forms per project. Templates are optional starting points.
  * ========================================================================= */
 
 export type FieldType =
@@ -37,7 +36,7 @@ export const FIELD_TYPE_META: Record<
   url: { label: 'URL', blurb: 'A web address or link.' },
   number: { label: 'Number', blurb: 'A numeric value — price, quantity.' },
   date: { label: 'Date', blurb: 'A calendar date.' },
-  file: { label: 'Image / file', blurb: 'Upload — lands in the asset hub.' },
+  file: { label: 'Image / file', blurb: 'Upload a file (wired later).' },
   group: { label: 'Repeatable group', blurb: 'A set of fields repeated many times.' },
 }
 
@@ -54,61 +53,21 @@ export type FormField = {
   fields?: FormField[]
 }
 
-export type SectionOrigin = 'page' | 'site-type' | 'custom'
 export type SectionStatus = 'outstanding' | 'submitted'
 
 export type FormSection = {
   id: string
   title: string
   description: string
-  origin: SectionOrigin
   status: SectionStatus
-  /** For page-derived sections: where submitted content flows back to. */
-  mappedPageId?: string | null
-  mappedSectionId?: string | null
   fields: FormField[]
-}
-
-export type SiteType =
-  | 'static'
-  | 'woocommerce'
-  | 'local'
-  | 'blog'
-  | 'portfolio'
-
-export const SITE_TYPE_META: Record<
-  SiteType,
-  { label: string; blurb: string }
-> = {
-  static: {
-    label: 'Static / Brochure',
-    blurb: 'Marketing pages — home, about, services, contact.',
-  },
-  woocommerce: {
-    label: 'WooCommerce',
-    blurb: 'Online store — products, categories, shipping, payments.',
-  },
-  local: {
-    label: 'Local Business',
-    blurb: 'Hours, locations, services, and NAP details.',
-  },
-  blog: {
-    label: 'Blog / Content',
-    blurb: 'Editorial site — authors, categories, posts.',
-  },
-  portfolio: {
-    label: 'Portfolio',
-    blurb: 'Showcase work — projects, bio, services.',
-  },
 }
 
 export type FormTemplate = {
   id: string
   name: string
-  siteType: SiteType
   description: string
   builtIn: boolean
-  /** Section blueprints (ids are regenerated when the template is applied). */
   sections: FormSection[]
 }
 
@@ -140,7 +99,6 @@ function field(
 
 function section(
   title: string,
-  origin: SectionOrigin,
   fields: FormField[],
   description = '',
 ): FormSection {
@@ -148,304 +106,154 @@ function section(
     id: uid('sec'),
     title,
     description,
-    origin,
     status: 'outstanding',
     fields,
   }
 }
 
-/* ---------- structure-aware seeding ---------- */
+/* ---------- built-in templates (optional starting points) ---------- */
 
-/**
- * Convert the project's sitemap sections into form sections so the agency
- * collects content for the pages they're actually building. Submitted copy
- * maps back to the wireframe slot via mappedPageId / mappedSectionId.
- */
-export function structureSections(): FormSection[] {
-  const out: FormSection[] = []
-  for (const page of DEFAULT_PAGES) {
-    for (const sec of collectableSections(page)) {
-      const label = sectionLabel(sec)
-      const fields = sectionContentFields(sec).map((f) =>
-        field(f.kind === 'long' ? 'long' : 'short', f.label, {
-          help: f.draft ? `Draft: ${truncate(f.draft, 80)}` : '',
-        }),
-      )
-      if (fields.length === 0) continue
-      out.push({
-        id: uid('sec'),
-        title: `${page.name} · ${label}`,
-        description: `Content for the ${label} section on ${page.name}.`,
-        origin: 'page',
-        status: 'outstanding',
-        mappedPageId: page.id,
-        mappedSectionId: sec.id,
-        fields,
-      })
-    }
-  }
-  return out
+const BUSINESS_BASICS_TEMPLATE: FormTemplate = {
+  id: 'builtin-business',
+  name: 'Business basics',
+  description: 'Core business info — name, services, audience, brand voice.',
+  builtIn: true,
+  sections: [
+    section('About the business', [
+      field('short', 'Business name', { required: true }),
+      field('long', 'What does the business do?', {
+        required: true,
+        help: 'Describe it in a few sentences, as if explaining to a stranger.',
+      }),
+      field('short', 'Tagline or slogan', { help: 'If you have one already.' }),
+      field('url', 'Current website', { help: 'If there is an existing site.' }),
+    ], 'The basics we need to get started.'),
+    section('Services & offerings', [
+      field('group', 'Service', {
+        required: true,
+        help: 'Add each service or product category.',
+        fields: [
+          field('short', 'Service name', { required: true }),
+          field('long', 'Description'),
+          field('short', 'Starting price', { help: 'Optional — e.g. "from $99"' }),
+        ],
+      }),
+    ], 'What you offer your customers.'),
+    section('Target audience', [
+      field('long', 'Who is your ideal customer?', { required: true }),
+      field('long', 'What problems do you solve for them?'),
+      field('multiselect', 'Customer type', {
+        options: ['B2B', 'B2C', 'Both', 'Non-profit'],
+      }),
+    ], 'Help us understand who the site is for.'),
+    section('Brand & voice', [
+      field('long', 'How should the site feel?', {
+        help: 'e.g. Professional but approachable, bold and playful, minimal and clean.',
+      }),
+      field('file', 'Logo files', { help: 'Upload your logo in any format.' }),
+      field('file', 'Brand guidelines', { help: 'If you have a brand guide or style sheet.' }),
+      field('multiselect', 'Competitors or sites you admire', {
+        help: 'Add URLs of sites whose style you like.',
+        options: [],
+      }),
+    ], 'Tone, look, and existing brand assets.'),
+  ],
 }
 
-function truncate(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n)}…` : s
+const ECOMMERCE_TEMPLATE: FormTemplate = {
+  id: 'builtin-ecommerce',
+  name: 'E-commerce',
+  description: 'Product catalog, shipping, payments, and store policies.',
+  builtIn: true,
+  sections: [
+    section('Products', [
+      field('group', 'Product', {
+        required: true,
+        help: 'Add each product you want to launch with.',
+        fields: [
+          field('short', 'Product name', { required: true }),
+          field('number', 'Price', { required: true }),
+          field('short', 'SKU'),
+          field('long', 'Description'),
+          field('file', 'Product images'),
+        ],
+      }),
+    ], 'The catalog of products for your store.'),
+    section('Categories', [
+      field('group', 'Category', {
+        fields: [
+          field('short', 'Category name', { required: true }),
+          field('long', 'Description'),
+        ],
+      }),
+    ], 'How products are organized.'),
+    section('Shipping & returns', [
+      field('long', 'Shipping policy', { required: true }),
+      field('long', 'Returns & refunds policy', { required: true }),
+      field('multiselect', 'Regions you ship to', {
+        options: ['Domestic', 'North America', 'Europe', 'Worldwide'],
+      }),
+    ], 'Fulfillment details shown at checkout.'),
+    section('Payment info', [
+      field('multiselect', 'Accepted payment methods', {
+        options: ['Credit card', 'PayPal', 'Apple Pay', 'Google Pay', 'Bank transfer'],
+      }),
+      field('short', 'Currency', { help: 'e.g. USD, EUR' }),
+    ], 'How customers pay.'),
+  ],
 }
 
-/* ---------- site-type template blueprints ---------- */
-
-function siteTypeSections(type: SiteType): FormSection[] {
-  switch (type) {
-    case 'woocommerce':
-      return [
-        section(
-          'Products',
-          'site-type',
-          [
-            field('group', 'Product', {
-              required: true,
-              help: 'Add each product you want to launch with.',
-              fields: [
-                field('short', 'Product name', { required: true }),
-                field('number', 'Price', { required: true }),
-                field('short', 'SKU'),
-                field('long', 'Description'),
-                field('file', 'Product images', { help: 'Uploads land in the asset hub.' }),
-              ],
-            }),
-          ],
-          'The catalog of products for your store.',
-        ),
-        section(
-          'Categories',
-          'site-type',
-          [
-            field('group', 'Category', {
-              fields: [
-                field('short', 'Category name', { required: true }),
-                field('long', 'Description'),
-              ],
-            }),
-          ],
-          'How products are organized.',
-        ),
-        section(
-          'Shipping & returns',
-          'site-type',
-          [
-            field('long', 'Shipping policy', { required: true }),
-            field('long', 'Returns & refunds policy', { required: true }),
-            field('multiselect', 'Regions you ship to', {
-              options: ['Domestic', 'North America', 'Europe', 'Worldwide'],
-            }),
-          ],
-          'Fulfillment details shown at checkout.',
-        ),
-        section(
-          'Payment info',
-          'site-type',
-          [
-            field('multiselect', 'Accepted payment methods', {
-              options: ['Credit card', 'PayPal', 'Apple Pay', 'Google Pay', 'Bank transfer'],
-            }),
-            field('short', 'Currency', { help: 'e.g. USD, EUR' }),
-            field('short', 'Tax / VAT number'),
-          ],
-          'How customers pay.',
-        ),
-      ]
-    case 'local':
-      return [
-        section(
-          'Business details (NAP)',
-          'site-type',
-          [
-            field('short', 'Business name', { required: true }),
-            field('short', 'Primary address', { required: true }),
-            field('short', 'Primary phone', { required: true }),
-            field('url', 'Website'),
-          ],
-          'Name, address, phone — kept consistent across the web.',
-        ),
-        section(
-          'Hours',
-          'site-type',
-          [
-            field('long', 'Opening hours', {
-              required: true,
-              help: 'e.g. Mon–Fri 9–5, Sat 10–2, Sun closed.',
-            }),
-            field('short', 'Holiday / seasonal notes'),
-          ],
-          'When you’re open.',
-        ),
-        section(
-          'Locations',
-          'site-type',
-          [
-            field('group', 'Location', {
-              fields: [
-                field('short', 'Location name', { required: true }),
-                field('short', 'Address', { required: true }),
-                field('short', 'Phone'),
-                field('short', 'Hours'),
-              ],
-            }),
-          ],
-          'Each storefront or service area.',
-        ),
-        section(
-          'Services',
-          'site-type',
-          [
-            field('group', 'Service', {
-              fields: [
-                field('short', 'Service name', { required: true }),
-                field('long', 'Description'),
-                field('short', 'Starting price'),
-              ],
-            }),
-          ],
-          'What you offer.',
-        ),
-      ]
-    case 'blog':
-      return [
-        section(
-          'Authors',
-          'site-type',
-          [
-            field('group', 'Author', {
-              fields: [
-                field('short', 'Name', { required: true }),
-                field('long', 'Bio'),
-                field('file', 'Headshot', { help: 'Uploads land in the asset hub.' }),
-                field('url', 'Social link'),
-              ],
-            }),
-          ],
-          'The people writing for the site.',
-        ),
-        section(
-          'Categories',
-          'site-type',
-          [
-            field('multiselect', 'Content categories', {
-              help: 'Add the topics you’ll publish under.',
-              options: ['News', 'Guides', 'Opinion', 'Interviews', 'Case studies'],
-            }),
-          ],
-          'How posts are grouped.',
-        ),
-        section(
-          'Launch posts',
-          'site-type',
-          [
-            field('group', 'Post', {
-              fields: [
-                field('short', 'Title', { required: true }),
-                field('long', 'Excerpt'),
-                field('long', 'Body'),
-                field('date', 'Publish date'),
-              ],
-            }),
-          ],
-          'Posts to seed the blog at launch.',
-        ),
-      ]
-    case 'portfolio':
-      return [
-        section(
-          'Projects',
-          'site-type',
-          [
-            field('group', 'Project', {
-              required: true,
-              fields: [
-                field('short', 'Project title', { required: true }),
-                field('short', 'Client'),
-                field('number', 'Year'),
-                field('long', 'Summary'),
-                field('file', 'Project images', { help: 'Uploads land in the asset hub.' }),
-                field('url', 'Live link'),
-              ],
-            }),
-          ],
-          'The work you want to showcase.',
-        ),
-        section(
-          'About / Bio',
-          'site-type',
-          [
-            field('long', 'Bio', { required: true }),
-            field('file', 'Portrait', { help: 'Uploads land in the asset hub.' }),
-          ],
-          'Your story.',
-        ),
-        section(
-          'Services',
-          'site-type',
-          [
-            field('multiselect', 'Services offered', {
-              options: ['Branding', 'Web design', 'Photography', 'Illustration', 'Strategy'],
-            }),
-          ],
-          'What clients can hire you for.',
-        ),
-      ]
-    case 'static':
-    default:
-      return [
-        section(
-          'Business basics',
-          'site-type',
-          [
-            field('short', 'Business name', { required: true }),
-            field('long', 'One-line description', {
-              required: true,
-              help: 'How you’d describe the business in a sentence.',
-            }),
-            field('short', 'Contact email'),
-            field('short', 'Contact phone'),
-          ],
-          'Core details used across the site.',
-        ),
-      ]
-  }
+const PORTFOLIO_TEMPLATE: FormTemplate = {
+  id: 'builtin-portfolio',
+  name: 'Portfolio / creative',
+  description: 'Projects, bio, services — for creatives and agencies.',
+  builtIn: true,
+  sections: [
+    section('Projects', [
+      field('group', 'Project', {
+        required: true,
+        fields: [
+          field('short', 'Project title', { required: true }),
+          field('short', 'Client'),
+          field('number', 'Year'),
+          field('long', 'Summary'),
+          field('file', 'Project images'),
+          field('url', 'Live link'),
+        ],
+      }),
+    ], 'The work you want to showcase.'),
+    section('About / Bio', [
+      field('long', 'Bio', { required: true }),
+      field('file', 'Portrait'),
+    ], 'Your story.'),
+    section('Services', [
+      field('long', 'What services do you offer?', { required: true }),
+      field('long', 'What is your process like?'),
+    ], 'What clients can hire you for.'),
+  ],
 }
 
-/* ---------- built-in templates ---------- */
-
-export function buildTemplate(type: SiteType): FormTemplate {
-  return {
-    id: `builtin-${type}`,
-    name: SITE_TYPE_META[type].label,
-    siteType: type,
-    description: SITE_TYPE_META[type].blurb,
-    builtIn: true,
-    sections: siteTypeSections(type),
-  }
-}
-
-export const BUILT_IN_TEMPLATES: FormTemplate[] = (
-  Object.keys(SITE_TYPE_META) as SiteType[]
-).map(buildTemplate)
+export const BUILT_IN_TEMPLATES: FormTemplate[] = [
+  BUSINESS_BASICS_TEMPLATE,
+  ECOMMERCE_TEMPLATE,
+  PORTFOLIO_TEMPLATE,
+]
 
 /* =========================================================================
- * Store
+ * Store — supports multiple forms per project
  * ========================================================================= */
 
 export type ContentForm = {
-  templateId: string | null
-  siteType: SiteType
-  includesStructure: boolean
+  id: string          // DB id (or local uid before first save)
+  projectId: string
+  name: string
   sections: FormSection[]
   sent: boolean
   sentAt?: number
 }
 
-let currentForm: ContentForm | null = null
-let currentFormDbId: string | null = null
-let currentProjectId: string | null = null
+let forms: ContentForm[] = []
+let loadedProjectId: string | null = null
 let customTemplates: FormTemplate[] = []
 const listeners = new Set<() => void>()
 
@@ -457,70 +265,69 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener)
 }
 
-function getForm() {
-  return currentForm
+function getForms() {
+  return forms
 }
 function getTemplates() {
   return customTemplates
 }
-const SERVER_FORM = null
+const SERVER_FORMS: ContentForm[] = []
 const SERVER_TEMPLATES: FormTemplate[] = []
 
 /* ---------- DB persistence ---------- */
 
-let saveTimer: ReturnType<typeof setTimeout> | null = null
+const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
-function debounceSave() {
-  if (!currentForm || !currentFormDbId) return
-  if (saveTimer) clearTimeout(saveTimer)
-  const id = currentFormDbId
-  const form = currentForm
-  saveTimer = setTimeout(() => {
-    supabase
-      .from('content_forms')
-      .update({
-        sections: form.sections as unknown as Record<string, unknown>[],
-        sent: form.sent,
-        sent_at: form.sentAt ? new Date(form.sentAt).toISOString() : null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .then()
-  }, 800)
+function debounceSaveForm(formId: string) {
+  const form = forms.find((f) => f.id === formId)
+  if (!form) return
+  if (saveTimers.has(formId)) clearTimeout(saveTimers.get(formId)!)
+  saveTimers.set(
+    formId,
+    setTimeout(() => {
+      supabase
+        .from('content_forms')
+        .update({
+          name: form.name,
+          sections: form.sections as unknown as Record<string, unknown>[],
+          sent: form.sent,
+          sent_at: form.sentAt ? new Date(form.sentAt).toISOString() : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', formId)
+        .then()
+      saveTimers.delete(formId)
+    }, 800),
+  )
 }
 
-/** Load an existing content form from DB, or return null. */
-export async function loadForm(projectId: string): Promise<ContentForm | null> {
+/** Load all content forms for a project from DB. */
+export async function loadForms(projectId: string): Promise<ContentForm[]> {
   const { data } = await supabase
     .from('content_forms')
-    .select('id, template_id, site_type, includes_structure, sections, sent, sent_at')
+    .select('id, name, sections, sent, sent_at')
     .eq('project_id', projectId)
     .eq('kind', 'content')
-    .limit(1)
-    .maybeSingle()
+    .order('created_at', { ascending: true })
 
-  if (!data) return null
-
-  currentFormDbId = data.id
-  currentProjectId = projectId
-  const form: ContentForm = {
-    templateId: data.template_id,
-    siteType: (data.site_type as SiteType) ?? 'static',
-    includesStructure: data.includes_structure ?? true,
-    sections: (data.sections as FormSection[]) ?? [],
-    sent: data.sent ?? false,
-    sentAt: data.sent_at ? new Date(data.sent_at).getTime() : undefined,
-  }
-  currentForm = form
+  loadedProjectId = projectId
+  forms = (data ?? []).map((row: any) => ({
+    id: row.id,
+    projectId,
+    name: row.name ?? 'Untitled',
+    sections: (row.sections as FormSection[]) ?? [],
+    sent: row.sent ?? false,
+    sentAt: row.sent_at ? new Date(row.sent_at).getTime() : undefined,
+  }))
   emit()
-  return form
+  return forms
 }
 
 /** Load custom templates for an account from DB. */
 export async function loadCustomTemplates(accountId: string): Promise<FormTemplate[]> {
   const { data } = await supabase
     .from('form_templates')
-    .select('id, name, site_type, description, sections')
+    .select('id, name, description, sections')
     .eq('account_id', accountId)
     .order('created_at', { ascending: false })
 
@@ -528,7 +335,6 @@ export async function loadCustomTemplates(accountId: string): Promise<FormTempla
     customTemplates = data.map((t: any) => ({
       id: t.id,
       name: t.name,
-      siteType: t.site_type as SiteType,
       description: t.description ?? '',
       builtIn: false,
       sections: (t.sections as FormSection[]) ?? [],
@@ -538,12 +344,12 @@ export async function loadCustomTemplates(accountId: string): Promise<FormTempla
   return customTemplates
 }
 
-/** Deep-clone a section list, regenerating every id so applied templates are independent. */
+/** Deep-clone a section list, regenerating every id. */
 function cloneSections(sections: FormSection[]): FormSection[] {
   return sections.map((s) => ({
     ...s,
     id: uid('sec'),
-    status: 'outstanding',
+    status: 'outstanding' as const,
     fields: cloneFields(s.fields),
   }))
 }
@@ -558,104 +364,91 @@ function cloneFields(fields: FormField[]): FormField[] {
 
 /* ---------- mutations ---------- */
 
-export async function startForm(
-  template: FormTemplate,
-  includeStructure: boolean,
-  projectId?: string,
-) {
-  const structure = includeStructure ? structureSections() : []
-  currentForm = {
-    templateId: template.id,
-    siteType: template.siteType,
-    includesStructure: includeStructure,
-    sections: [...structure, ...cloneSections(template.sections)],
+/** Create a new content form (blank or from template). */
+export async function createForm(
+  projectId: string,
+  name: string,
+  templateSections?: FormSection[],
+): Promise<ContentForm> {
+  const sections = templateSections ? cloneSections(templateSections) : []
+  const localId = uid('form')
+
+  const form: ContentForm = {
+    id: localId,
+    projectId,
+    name: name || 'Untitled',
+    sections,
     sent: false,
   }
+
+  // Optimistic — add to store immediately
+  forms = [...forms, form]
   emit()
 
-  if (projectId) {
-    currentProjectId = projectId
-    // Check if form already exists for this project
-    const { data: existing } = await supabase
-      .from('content_forms')
-      .select('id')
-      .eq('project_id', projectId)
-      .eq('kind', 'content')
-      .maybeSingle()
+  // Persist
+  const { data } = await supabase
+    .from('content_forms')
+    .insert({
+      project_id: projectId,
+      kind: 'content',
+      name: form.name,
+      sections: sections as unknown as Record<string, unknown>[],
+      sent: false,
+    })
+    .select('id')
+    .single()
 
-    if (existing) {
-      // Update existing
-      currentFormDbId = existing.id
-      await supabase
-        .from('content_forms')
-        .update({
-          template_id: template.id,
-          site_type: template.siteType,
-          includes_structure: includeStructure,
-          sections: currentForm.sections as unknown as Record<string, unknown>[],
-          sent: false,
-          sent_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id)
-    } else {
-      // Insert new
-      const { data } = await supabase
-        .from('content_forms')
-        .insert({
-          project_id: projectId,
-          kind: 'content',
-          template_id: template.id,
-          site_type: template.siteType,
-          includes_structure: includeStructure,
-          sections: currentForm.sections as unknown as Record<string, unknown>[],
-          sent: false,
-        })
-        .select('id')
-        .single()
-      if (data) {
-        currentFormDbId = data.id
-      }
-    }
+  if (data) {
+    // Update local id to DB id
+    forms = forms.map((f) => (f.id === localId ? { ...f, id: data.id } : f))
+    emit()
+    form.id = data.id
   }
+
+  return form
 }
 
-export function resetForm() {
-  currentForm = null
+/** Delete a content form. */
+export async function deleteForm(formId: string) {
+  forms = forms.filter((f) => f.id !== formId)
   emit()
+  await supabase.from('content_forms').delete().eq('id', formId)
 }
 
-function mutate(fn: (form: ContentForm) => ContentForm) {
-  if (!currentForm) return
-  currentForm = fn(currentForm)
+function mutateForm(formId: string, fn: (form: ContentForm) => ContentForm) {
+  forms = forms.map((f) => (f.id === formId ? fn(f) : f))
   emit()
-  debounceSave()
+  debounceSaveForm(formId)
 }
 
-export function addSection() {
-  mutate((f) => ({
+export function renameForm(formId: string, name: string) {
+  mutateForm(formId, (f) => ({ ...f, name }))
+}
+
+export function addSection(formId: string) {
+  mutateForm(formId, (f) => ({
     ...f,
     sections: [
       ...f.sections,
-      section('Untitled section', 'custom', [field('short', 'New field')]),
+      section('Untitled section', [field('short', 'New question')]),
     ],
   }))
 }
 
-export function updateSection(id: string, patch: Partial<FormSection>) {
-  mutate((f) => ({
+export function updateSection(formId: string, sectionId: string, patch: Partial<FormSection>) {
+  mutateForm(formId, (f) => ({
     ...f,
-    sections: f.sections.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    sections: f.sections.map((s) => (s.id === sectionId ? { ...s, ...patch } : s)),
   }))
 }
 
-export function removeSection(id: string) {
-  mutate((f) => ({ ...f, sections: f.sections.filter((s) => s.id !== id) }))
+export function removeSection(formId: string, sectionId: string) {
+  mutateForm(formId, (f) => ({ ...f, sections: f.sections.filter((s) => s.id !== sectionId) }))
 }
 
-export function moveSection(id: string, dir: -1 | 1) {
-  mutate((f) => {
-    const i = f.sections.findIndex((s) => s.id === id)
+export function moveSection(formId: string, sectionId: string, dir: -1 | 1) {
+  mutateForm(formId, (f) => {
+    const i = f.sections.findIndex((s) => s.id === sectionId)
     const j = i + dir
     if (i < 0 || j < 0 || j >= f.sections.length) return f
     const next = [...f.sections]
@@ -664,12 +457,12 @@ export function moveSection(id: string, dir: -1 | 1) {
   })
 }
 
-export function setSectionStatus(id: string, status: SectionStatus) {
-  updateSection(id, { status })
+export function setSectionStatus(formId: string, sectionId: string, status: SectionStatus) {
+  updateSection(formId, sectionId, { status })
 }
 
-export function addField(sectionId: string, type: FieldType) {
-  mutate((f) => ({
+export function addField(formId: string, sectionId: string, type: FieldType) {
+  mutateForm(formId, (f) => ({
     ...f,
     sections: f.sections.map((s) =>
       s.id === sectionId
@@ -692,11 +485,12 @@ export function addField(sectionId: string, type: FieldType) {
 }
 
 export function updateField(
+  formId: string,
   sectionId: string,
   fieldId: string,
   patch: Partial<FormField>,
 ) {
-  mutate((f) => ({
+  mutateForm(formId, (f) => ({
     ...f,
     sections: f.sections.map((s) =>
       s.id === sectionId
@@ -706,8 +500,8 @@ export function updateField(
   }))
 }
 
-export function removeField(sectionId: string, fieldId: string) {
-  mutate((f) => ({
+export function removeField(formId: string, sectionId: string, fieldId: string) {
+  mutateForm(formId, (f) => ({
     ...f,
     sections: f.sections.map((s) =>
       s.id === sectionId ? { ...s, fields: s.fields.filter((fl) => fl.id !== fieldId) } : s,
@@ -715,8 +509,8 @@ export function removeField(sectionId: string, fieldId: string) {
   }))
 }
 
-export function moveField(sectionId: string, fieldId: string, dir: -1 | 1) {
-  mutate((f) => ({
+export function moveField(formId: string, sectionId: string, fieldId: string, dir: -1 | 1) {
+  mutateForm(formId, (f) => ({
     ...f,
     sections: f.sections.map((s) => {
       if (s.id !== sectionId) return s
@@ -730,21 +524,21 @@ export function moveField(sectionId: string, fieldId: string, dir: -1 | 1) {
   }))
 }
 
-export function sendToClient() {
-  mutate((f) => ({ ...f, sent: true, sentAt: Date.now() }))
+export function sendToClient(formId: string) {
+  mutateForm(formId, (f) => ({ ...f, sent: true, sentAt: Date.now() }))
 }
 
 function defaultLabel(type: FieldType): string {
   return FIELD_TYPE_META[type].label
 }
 
-export async function saveAsTemplate(name: string, accountId?: string) {
-  if (!currentForm) return
-  const sections = cloneSections(currentForm.sections.filter((s) => s.origin !== 'page'))
+export async function saveAsTemplate(formId: string, name: string, accountId?: string) {
+  const form = forms.find((f) => f.id === formId)
+  if (!form) return
+  const sections = cloneSections(form.sections)
   const tpl: FormTemplate = {
     id: uid('tpl'),
     name: name.trim() || 'Custom template',
-    siteType: currentForm.siteType,
     description: 'Custom template',
     builtIn: false,
     sections,
@@ -756,7 +550,6 @@ export async function saveAsTemplate(name: string, accountId?: string) {
       .insert({
         account_id: accountId,
         name: tpl.name,
-        site_type: tpl.siteType,
         description: tpl.description,
         sections: sections as unknown as Record<string, unknown>[],
       })
@@ -779,19 +572,18 @@ export async function removeCustomTemplate(id: string) {
 
 /* ---------- hooks ---------- */
 
-export function useContentForm(): ContentForm | null {
-  return useSyncExternalStore(subscribe, getForm, () => SERVER_FORM)
+export function useContentForms(): ContentForm[] {
+  return useSyncExternalStore(subscribe, getForms, () => SERVER_FORMS)
 }
 export function useCustomTemplates(): FormTemplate[] {
   return useSyncExternalStore(subscribe, getTemplates, () => SERVER_TEMPLATES)
 }
 
-/** Load form from DB when projectId changes. */
+/** Load forms from DB when projectId changes. */
 export function useContentFormLoader(projectId: string | null) {
   useEffect(() => {
     if (!projectId) return
-    // Only load if we haven't already loaded for this project
-    if (currentProjectId === projectId && currentForm) return
-    loadForm(projectId)
+    if (loadedProjectId === projectId && forms.length > 0) return
+    loadForms(projectId)
   }, [projectId])
 }

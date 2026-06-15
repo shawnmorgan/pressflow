@@ -32,26 +32,21 @@ const Label = ({ children }: { children: React.ReactNode }) => (
   </span>
 )
 
-const ORIGIN_META: Record<FormSection['origin'], { label: string; tone: string }> = {
-  page: { label: 'From sitemap', tone: 'text-[#2271b1] border-[#2271b1]/30 bg-[#2271b1]/5' },
-  'site-type': { label: 'Site type', tone: 'text-[#b26200] border-[#dba617]/40 bg-[#dba617]/5' },
-  custom: { label: 'Custom', tone: 'text-muted-foreground border-border bg-background' },
-}
-
 const FIELD_TYPES = Object.keys(FIELD_TYPE_META) as FieldType[]
 
 export function SectionCard({
+  formId,
   section,
   index,
   count,
 }: {
+  formId: string
   section: FormSection
   index: number
   count: number
 }) {
   const [open, setOpen] = useState(true)
   const [editingTitle, setEditingTitle] = useState(false)
-  const origin = ORIGIN_META[section.origin]
   const requiredCount = section.fields.filter((f) => f.required).length
 
   return (
@@ -72,7 +67,7 @@ export function SectionCard({
             <input
               autoFocus
               value={section.title}
-              onChange={(e) => updateSection(section.id, { title: e.target.value })}
+              onChange={(e) => updateSection(formId, section.id, { title: e.target.value })}
               onBlur={() => setEditingTitle(false)}
               onKeyDown={(e) => e.key === 'Enter' && setEditingTitle(false)}
               className="w-full rounded-sm border border-input bg-background px-2 py-1 text-[13px] font-medium text-foreground outline-none focus:border-primary"
@@ -91,11 +86,6 @@ export function SectionCard({
           )}
         </div>
 
-        <span
-          className={`hidden shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide sm:inline-block ${origin.tone}`}
-        >
-          {origin.label}
-        </span>
         <span className="hidden shrink-0 text-[11px] text-muted-foreground md:inline">
           {section.fields.length} field{section.fields.length === 1 ? '' : 's'}
           {requiredCount > 0 && ` · ${requiredCount} required`}
@@ -105,7 +95,7 @@ export function SectionCard({
         <div className="flex items-center">
           <button
             type="button"
-            onClick={() => moveSection(section.id, -1)}
+            onClick={() => moveSection(formId, section.id, -1)}
             disabled={index === 0}
             aria-label="Move section up"
             className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
@@ -114,7 +104,7 @@ export function SectionCard({
           </button>
           <button
             type="button"
-            onClick={() => moveSection(section.id, 1)}
+            onClick={() => moveSection(formId, section.id, 1)}
             disabled={index === count - 1}
             aria-label="Move section down"
             className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
@@ -125,7 +115,7 @@ export function SectionCard({
 
         <button
           type="button"
-          onClick={() => removeSection(section.id)}
+          onClick={() => removeSection(formId, section.id)}
           aria-label="Remove section"
           className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-[#d63638]"
         >
@@ -140,8 +130,8 @@ export function SectionCard({
             <Label>Section note (shown to client)</Label>
             <input
               value={section.description}
-              onChange={(e) => updateSection(section.id, { description: e.target.value })}
-              placeholder="Add a short instruction for this section…"
+              onChange={(e) => updateSection(formId, section.id, { description: e.target.value })}
+              placeholder="Add a short instruction for this section..."
               className="w-full rounded-sm border border-input bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
             />
           </label>
@@ -149,12 +139,12 @@ export function SectionCard({
           {/* Fields */}
           <div className="flex flex-col gap-2">
             {section.fields.map((f) => (
-              <FieldRow key={f.id} sectionId={section.id} field={f} />
+              <FieldRow key={f.id} formId={formId} sectionId={section.id} field={f} />
             ))}
           </div>
 
           {/* Add field */}
-          <AddFieldMenu sectionId={section.id} />
+          <AddFieldMenu formId={formId} sectionId={section.id} />
         </div>
       )}
     </div>
@@ -165,7 +155,7 @@ export function SectionCard({
 /* Field row                                                           */
 /* ------------------------------------------------------------------ */
 
-function FieldRow({ sectionId, field }: { sectionId: string; field: FormField }) {
+function FieldRow({ formId, sectionId, field }: { formId: string; sectionId: string; field: FormField }) {
   const [open, setOpen] = useState(false)
   const isGroup = field.type === 'group'
   const hasOptions = field.type === 'select' || field.type === 'multiselect'
@@ -189,7 +179,7 @@ function FieldRow({ sectionId, field }: { sectionId: string; field: FormField })
         </span>
         <button
           type="button"
-          onClick={() => moveField(sectionId, field.id, -1)}
+          onClick={() => moveField(formId, sectionId, field.id, -1)}
           aria-label="Move field up"
           className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
@@ -197,7 +187,7 @@ function FieldRow({ sectionId, field }: { sectionId: string; field: FormField })
         </button>
         <button
           type="button"
-          onClick={() => moveField(sectionId, field.id, 1)}
+          onClick={() => moveField(formId, sectionId, field.id, 1)}
           aria-label="Move field down"
           className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
@@ -213,7 +203,7 @@ function FieldRow({ sectionId, field }: { sectionId: string; field: FormField })
         </button>
         <button
           type="button"
-          onClick={() => removeField(sectionId, field.id)}
+          onClick={() => removeField(formId, sectionId, field.id)}
           aria-label="Remove field"
           className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-[#d63638]"
         >
@@ -228,7 +218,7 @@ function FieldRow({ sectionId, field }: { sectionId: string; field: FormField })
               <Label>Label</Label>
               <input
                 value={field.label}
-                onChange={(e) => updateField(sectionId, field.id, { label: e.target.value })}
+                onChange={(e) => updateField(formId, sectionId, field.id, { label: e.target.value })}
                 className="rounded-sm border border-input bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary"
               />
             </label>
@@ -237,7 +227,7 @@ function FieldRow({ sectionId, field }: { sectionId: string; field: FormField })
               <select
                 value={field.type}
                 onChange={(e) =>
-                  updateField(sectionId, field.id, {
+                  updateField(formId, sectionId, field.id, {
                     type: e.target.value as FieldType,
                     options:
                       e.target.value === 'select' || e.target.value === 'multiselect'
@@ -264,7 +254,7 @@ function FieldRow({ sectionId, field }: { sectionId: string; field: FormField })
             <Label>Helper text / example</Label>
             <input
               value={field.help}
-              onChange={(e) => updateField(sectionId, field.id, { help: e.target.value })}
+              onChange={(e) => updateField(formId, sectionId, field.id, { help: e.target.value })}
               placeholder="e.g. Keep it under 60 characters"
               className="rounded-sm border border-input bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
             />
@@ -273,14 +263,14 @@ function FieldRow({ sectionId, field }: { sectionId: string; field: FormField })
           {hasOptions && (
             <OptionsEditor
               options={field.options ?? []}
-              onChange={(options) => updateField(sectionId, field.id, { options })}
+              onChange={(options) => updateField(formId, sectionId, field.id, { options })}
             />
           )}
 
           {isGroup && (
             <SubFieldsEditor
               fields={field.fields ?? []}
-              onChange={(fields) => updateField(sectionId, field.id, { fields })}
+              onChange={(fields) => updateField(formId, sectionId, field.id, { fields })}
             />
           )}
 
@@ -289,7 +279,7 @@ function FieldRow({ sectionId, field }: { sectionId: string; field: FormField })
               type="button"
               role="checkbox"
               aria-checked={field.required}
-              onClick={() => updateField(sectionId, field.id, { required: !field.required })}
+              onClick={() => updateField(formId, sectionId, field.id, { required: !field.required })}
               className={`flex size-4 items-center justify-center rounded-sm border transition-colors ${
                 field.required
                   ? 'border-primary bg-primary text-primary-foreground'
@@ -368,7 +358,6 @@ function SubFieldsEditor({
 }) {
   let seq = 0
   const newId = () => `sub-${Date.now().toString(36)}-${seq++}`
-  // Sub-fields are limited to non-group types to keep nesting light.
   const SUB_TYPES = FIELD_TYPES.filter((t) => t !== 'group')
 
   return (
@@ -431,7 +420,7 @@ function SubFieldsEditor({
 /* Add field menu                                                      */
 /* ------------------------------------------------------------------ */
 
-function AddFieldMenu({ sectionId }: { sectionId: string }) {
+function AddFieldMenu({ formId, sectionId }: { formId: string; sectionId: string }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative">
@@ -452,7 +441,7 @@ function AddFieldMenu({ sectionId }: { sectionId: string }) {
                 key={t}
                 type="button"
                 onClick={() => {
-                  addField(sectionId, t)
+                  addField(formId, sectionId, t)
                   setOpen(false)
                 }}
                 className="flex w-full flex-col gap-0.5 px-3 py-2 text-left transition-colors hover:bg-muted"

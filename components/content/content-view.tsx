@@ -3,27 +3,30 @@
 import { useState, useEffect } from 'react'
 import { InfiniteCanvas } from '@/components/canvas/infinite-canvas'
 import { Frame } from '@/components/canvas/frame'
-import {
-  addSection,
-  resetForm,
-  saveAsTemplate,
-  sendToClient,
-  setSectionStatus,
-  useContentForm,
-  SITE_TYPE_META,
-  type ContentForm,
-  type FormSection,
-} from '@/lib/content-forms'
 import { TemplatePicker } from '@/components/content-builder/template-picker'
 import { SectionCard } from '@/components/content-builder/section-card'
 import {
+  addSection,
+  deleteForm,
+  renameForm,
+  saveAsTemplate,
+  sendToClient,
+  setSectionStatus,
+  useContentForms,
+  type ContentForm,
+  type FormSection,
+} from '@/lib/content-forms'
+import {
   Check,
-  Layers,
+  FileCode,
+  ImageIcon,
+  Pencil,
   Plus,
   Share,
+  Trash,
+  Upload,
   X,
 } from '@/components/icons'
-import { type Page } from '@/lib/sitemap'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
 
@@ -33,120 +36,265 @@ const Label = ({ children }: { children: React.ReactNode }) => (
   </span>
 )
 
-export function ContentView({ pages, projectId }: { pages: Page[]; projectId?: string }) {
-  const form = useContentForm()
+export function ContentView({ projectId }: { projectId?: string }) {
+  const forms = useContentForms()
+  const [addFormOpen, setAddFormOpen] = useState(false)
 
   return (
-    <InfiniteCanvas>
-      <div className="p-24 pl-32">
-        <Frame title="Content Collection" width={720}>
-          <div className="p-5">
-            {form ? <Builder form={form} projectId={projectId} /> : <TemplatePicker projectId={projectId} />}
-          </div>
-        </Frame>
-      </div>
-    </InfiniteCanvas>
-  )
-}
-
-function Builder({ form, projectId }: { form: ContentForm; projectId?: string }) {
-  const [saving, setSaving] = useState(false)
-
-  const submitted = form.sections.filter((s) => s.status === 'submitted').length
-  const total = form.sections.length
-  const pageCount = form.sections.filter((s) => s.origin === 'page').length
-  const siteTypeCount = form.sections.filter((s) => s.origin === 'site-type').length
-
-  return (
-    <div className="flex flex-col gap-6">
-      {/* Title row */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-[20px] font-semibold tracking-tight text-foreground text-balance">
-            Content collection form
-          </h2>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-1.5 py-0.5 font-medium">
-              <Layers className="size-3" />
-              {SITE_TYPE_META[form.siteType].label}
-            </span>
-            <span>
-              {pageCount} from sitemap · {siteTypeCount} site-type
-            </span>
-          </p>
-        </div>
+    <div className="relative flex h-full">
+      {/* Left context icon stack */}
+      <div className="absolute left-4 top-4 z-[55] flex flex-col gap-2">
         <button
           type="button"
-          onClick={() => {
-            if (confirm('Start over? This clears the current form.')) resetForm()
-          }}
-          className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+          title="Add asset"
+          className="flex size-9 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
         >
-          <X className="size-3.5" />
-          Start over
+          <Upload className="size-4" />
         </button>
-      </div>
-
-      {/* Tracking */}
-      <TrackPanel sections={form.sections} sent={form.sent} submitted={submitted} total={total} />
-
-      {/* Sections */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <Label>Sections</Label>
-          <span className="text-[11px] text-muted-foreground">{total} total</span>
-        </div>
-        {form.sections.map((s, i) => (
-          <SectionWithStatus key={s.id} section={s} index={i} count={total} sent={form.sent} />
-        ))}
         <button
           type="button"
-          onClick={addSection}
-          className="inline-flex w-fit items-center gap-1.5 rounded-sm border border-dashed border-border bg-card px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+          title="Add form request"
+          onClick={() => setAddFormOpen(true)}
+          className="flex size-9 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
         >
           <Plus className="size-4" />
-          Add section
         </button>
       </div>
 
-      {/* Actions */}
-      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-        <button
-          type="button"
-          onClick={() => setSaving(true)}
-          className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
+      <InfiniteCanvas>
+        <div className="flex gap-8 p-24 pl-32">
+          {/* Assets frame */}
+          <AssetsFrame />
+
+          {/* Content form frames */}
+          {forms.map((form) => (
+            <ContentFormFrame key={form.id} form={form} projectId={projectId} />
+          ))}
+
+          {/* Empty state when no forms */}
+          {forms.length === 0 && !addFormOpen && (
+            <Frame title="Content collection" width={480}>
+              <div className="flex flex-col items-center gap-4 px-5 py-12 text-center">
+                <FileCode className="size-8 text-muted-foreground/50" />
+                <div>
+                  <p className="text-[13px] font-medium text-foreground">No content forms yet</p>
+                  <p className="mt-1 text-[12px] text-muted-foreground">
+                    Create a form to collect content from your client — business info, copy, assets, anything you need.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAddFormOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3.5 py-2 text-[12px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  <Plus className="size-4" />
+                  New form request
+                </button>
+              </div>
+            </Frame>
+          )}
+        </div>
+      </InfiniteCanvas>
+
+      {/* Add form modal */}
+      {addFormOpen && projectId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4"
+          onClick={() => setAddFormOpen(false)}
         >
-          <Layers className="size-3.5" />
-          Save as template
-        </button>
-        {form.sent ? (
-          <span className="inline-flex items-center gap-1.5 rounded-sm border border-primary bg-primary/[0.06] px-3 py-2 text-[12px] font-semibold text-primary">
-            <Check className="size-3.5" />
-            Sent to client
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={sendToClient}
-            className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3.5 py-2 text-[12px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          <div
+            className="w-full max-w-lg rounded-sm border border-border bg-card p-5 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
           >
-            <Share className="size-3.5" />
-            Send to client
-          </button>
-        )}
-      </div>
-
-      {saving && <SaveTemplateModal onClose={() => setSaving(false)} projectId={projectId} />}
+            <TemplatePicker
+              projectId={projectId}
+              onCreated={() => setAddFormOpen(false)}
+              onClose={() => setAddFormOpen(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
+/* ------------------------------------------------------------------ */
+/* Assets frame (stub — no storage internals)                          */
+/* ------------------------------------------------------------------ */
+
+function AssetsFrame() {
+  return (
+    <Frame title="Assets" width={320}>
+      <div className="flex flex-col items-center gap-4 px-5 py-10 text-center">
+        <ImageIcon className="size-8 text-muted-foreground/50" />
+        <div>
+          <p className="text-[13px] font-medium text-foreground">Project assets</p>
+          <p className="mt-1 text-[12px] text-muted-foreground">
+            Logos, images, and files uploaded by you or the client appear here.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded-sm border border-dashed border-border bg-card px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+        >
+          <Upload className="size-4" />
+          Upload asset
+        </button>
+        <p className="text-[11px] text-muted-foreground/70">
+          Storage wiring coming soon.
+        </p>
+      </div>
+    </Frame>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Content form frame                                                   */
+/* ------------------------------------------------------------------ */
+
+function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: string }) {
+  const [editingName, setEditingName] = useState(false)
+  const [savingTemplate, setSavingTemplate] = useState(false)
+
+  const submitted = form.sections.filter((s) => s.status === 'submitted').length
+  const total = form.sections.length
+
+  return (
+    <Frame title={form.name} width={680}>
+      <div className="flex flex-col gap-5 p-5">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {editingName ? (
+              <input
+                autoFocus
+                value={form.name}
+                onChange={(e) => renameForm(form.id, e.target.value)}
+                onBlur={() => setEditingName(false)}
+                onKeyDown={(e) => e.key === 'Enter' && setEditingName(false)}
+                className="w-full rounded-sm border border-input bg-background px-2 py-1 text-[15px] font-semibold text-foreground outline-none focus:border-primary"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditingName(true)}
+                className="group flex items-center gap-2 text-left"
+              >
+                <h2 className="text-[15px] font-semibold text-foreground">{form.name}</h2>
+                <Pencil className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            )}
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              {total} section{total === 1 ? '' : 's'}
+              {form.sent && ` · ${submitted}/${total} received`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm('Delete this form? This cannot be undone.')) deleteForm(form.id)
+            }}
+            className="flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-[#d63638]"
+            aria-label="Delete form"
+          >
+            <Trash className="size-3.5" />
+          </button>
+        </div>
+
+        {/* Status tracking (when sent) */}
+        {form.sent && total > 0 && (
+          <div className="flex flex-col gap-2 rounded-sm border border-border bg-card p-3">
+            <div className="flex items-center justify-between">
+              <Label>Collection status</Label>
+              <span className="text-[12px] font-medium text-foreground">
+                {submitted}/{total} received
+              </span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${total ? Math.round((submitted / total) * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Sections */}
+        <div className="flex flex-col gap-3">
+          {form.sections.map((s, i) => (
+            <SectionWithStatus
+              key={s.id}
+              formId={form.id}
+              section={s}
+              index={i}
+              count={total}
+              sent={form.sent}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={() => addSection(form.id)}
+            className="inline-flex w-fit items-center gap-1.5 rounded-sm border border-dashed border-border bg-card px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+          >
+            <Plus className="size-4" />
+            Add section
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+          <button
+            type="button"
+            onClick={() => setSavingTemplate(true)}
+            className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
+          >
+            Save as template
+          </button>
+          <button
+            type="button"
+            disabled
+            title="PDF export coming soon"
+            className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-2 text-[12px] font-medium text-muted-foreground opacity-50"
+          >
+            Export PDF
+          </button>
+          {form.sent ? (
+            <span className="inline-flex items-center gap-1.5 rounded-sm border border-primary bg-primary/[0.06] px-3 py-2 text-[12px] font-semibold text-primary">
+              <Check className="size-3.5" />
+              Sent to client
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => sendToClient(form.id)}
+              className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3.5 py-2 text-[12px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <Share className="size-3.5" />
+              Send to client
+            </button>
+          )}
+        </div>
+
+        {savingTemplate && (
+          <SaveTemplateModal formId={form.id} onClose={() => setSavingTemplate(false)} projectId={projectId} />
+        )}
+      </div>
+    </Frame>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Section with status indicators                                      */
+/* ------------------------------------------------------------------ */
+
 function SectionWithStatus({
+  formId,
   section,
   index,
   count,
   sent,
 }: {
+  formId: string
   section: FormSection
   index: number
   count: number
@@ -154,7 +302,7 @@ function SectionWithStatus({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <SectionCard section={section} index={index} count={count} />
+      <SectionCard formId={formId} section={section} index={index} count={count} />
       {sent && (
         <div className="flex items-center justify-end gap-2 pr-1">
           {section.status === 'submitted' ? (
@@ -165,7 +313,7 @@ function SectionWithStatus({
               </span>
               <button
                 type="button"
-                onClick={() => setSectionStatus(section.id, 'outstanding')}
+                onClick={() => setSectionStatus(formId, section.id, 'outstanding')}
                 className="text-[11px] font-medium text-muted-foreground underline-offset-2 hover:underline"
               >
                 Reopen
@@ -176,7 +324,7 @@ function SectionWithStatus({
               <span className="text-[11px] font-medium text-[#b26200]">Outstanding</span>
               <button
                 type="button"
-                onClick={() => setSectionStatus(section.id, 'submitted')}
+                onClick={() => setSectionStatus(formId, section.id, 'submitted')}
                 className="text-[11px] font-medium text-muted-foreground underline-offset-2 hover:underline"
               >
                 Mark received
@@ -189,53 +337,11 @@ function SectionWithStatus({
   )
 }
 
-function TrackPanel({
-  sections,
-  sent,
-  submitted,
-  total,
-}: {
-  sections: FormSection[]
-  sent: boolean
-  submitted: number
-  total: number
-}) {
-  if (!sent) {
-    return (
-      <div className="rounded-sm border border-dashed border-border bg-card px-4 py-3">
-        <p className="text-[12px] leading-relaxed text-muted-foreground">
-          Build out the sections below, then{' '}
-          <span className="font-medium text-foreground">Send to client</span> to start
-          collecting. You'll track submitted vs outstanding sections here.
-        </p>
-      </div>
-    )
-  }
-  const pct = total ? Math.round((submitted / total) * 100) : 0
-  return (
-    <div className="flex flex-col gap-2.5 rounded-sm border border-border bg-card p-4">
-      <div className="flex items-center justify-between">
-        <Label>Collection status</Label>
-        <span className="text-[12px] font-medium text-foreground">
-          {submitted}/{total} sections received
-        </span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-primary transition-all"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <p className="text-[11px] text-muted-foreground">
-        {sections.filter((s) => s.status === 'outstanding').length} section
-        {sections.filter((s) => s.status === 'outstanding').length === 1 ? '' : 's'} still
-        outstanding.
-      </p>
-    </div>
-  )
-}
+/* ------------------------------------------------------------------ */
+/* Save-as-template modal                                              */
+/* ------------------------------------------------------------------ */
 
-function SaveTemplateModal({ onClose, projectId }: { onClose: () => void; projectId?: string }) {
+function SaveTemplateModal({ formId, onClose, projectId }: { formId: string; onClose: () => void; projectId?: string }) {
   const [name, setName] = useState('')
   const { user } = useAuth()
   const [accountId, setAccountId] = useState<string | null>(null)
@@ -264,8 +370,7 @@ function SaveTemplateModal({ onClose, projectId }: { onClose: () => void; projec
       >
         <h3 className="text-[15px] font-semibold text-foreground">Save as template</h3>
         <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-          Save these site-type sections as a reusable template. Sitemap-derived
-          sections are re-seeded per project.
+          Save this form's sections as a reusable template for future projects.
         </p>
         <label className="mt-4 flex flex-col gap-1.5">
           <Label>Template name</Label>
@@ -289,7 +394,7 @@ function SaveTemplateModal({ onClose, projectId }: { onClose: () => void; projec
             type="button"
             disabled={!name.trim()}
             onClick={() => {
-              saveAsTemplate(name, accountId ?? undefined)
+              saveAsTemplate(formId, name, accountId ?? undefined)
               onClose()
             }}
             className="rounded-sm bg-primary px-3.5 py-1.5 text-[12px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
