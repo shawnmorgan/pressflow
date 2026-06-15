@@ -149,18 +149,24 @@ function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: 
           >
             <Library className="size-3.5" />
           </button>
-          <button
-            type="button"
-            onClick={() => setExportOpen(true)}
-            aria-label="Export PDF"
-            title="Export PDF"
-            className="flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <Download className="size-3.5" />
-          </button>
         </div>
       }
     >
+      {/* Progress bar — shown when form is sent to client */}
+      {form.sent && total > 0 && (
+        <div className="flex items-center gap-3 border-b border-border bg-muted/30 px-4 py-2">
+          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${Math.round((submitted / total) * 100)}%` }}
+            />
+          </div>
+          <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
+            {submitted}/{total} received
+          </span>
+        </div>
+      )}
+
       <div className="flex flex-col gap-5 p-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
@@ -200,24 +206,6 @@ function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: 
             <Trash className="size-3.5" />
           </button>
         </div>
-
-        {/* Status tracking (when sent) */}
-        {form.sent && total > 0 && (
-          <div className="flex flex-col gap-2 rounded-sm border border-border bg-card p-3">
-            <div className="flex items-center justify-between">
-              <Label>Collection status</Label>
-              <span className="text-[12px] font-medium text-foreground">
-                {submitted}/{total} received
-              </span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${total ? Math.round((submitted / total) * 100) : 0}%` }}
-              />
-            </div>
-          </div>
-        )}
 
         {/* Sections */}
         <div className="flex flex-col gap-3">
@@ -267,10 +255,20 @@ function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: 
               Send reminder
             </button>
           )}
+          {form.sent && submitted === total && total > 0 && (
+            <button
+              type="button"
+              onClick={() => setExportOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
+            >
+              <Download className="size-3.5" />
+              Download PDF
+            </button>
+          )}
           {form.sent ? (
             <span className="inline-flex items-center gap-1.5 rounded-sm border border-primary bg-primary/[0.06] px-3 py-2 text-[12px] font-semibold text-primary">
               <Check className="size-3.5" />
-              Sent to client
+              {submitted === total && total > 0 ? 'Complete' : 'Sent to client'}
             </span>
           ) : (
             <button

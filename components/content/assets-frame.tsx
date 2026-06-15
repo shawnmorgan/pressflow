@@ -201,6 +201,7 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
       {/* ── Images Frame ── */}
       <ImagesFrame
         loading={loading}
+        uploading={uploading}
         images={images}
         uploadFiles={uploadFiles}
         onPreview={setDetailAsset}
@@ -209,6 +210,7 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
       {/* ── Videos Frame ── */}
       <VideosFrame
         loading={loading}
+        uploading={uploading}
         videos={videos}
         uploadFiles={uploadFiles}
         onPreview={setDetailAsset}
@@ -217,6 +219,7 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
       {/* ── Files Frame ── */}
       <FilesFrame
         loading={loading}
+        uploading={uploading}
         files={files}
         uploadFiles={uploadFiles}
         onPreview={setDetailAsset}
@@ -350,13 +353,24 @@ function BrandingFrame({
 /* Images Frame                                                        */
 /* ------------------------------------------------------------------ */
 
+function UploadingBar() {
+  return (
+    <div className="flex items-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2">
+      <div className="size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <span className="text-[11px] font-medium text-primary">Uploading...</span>
+    </div>
+  )
+}
+
 function ImagesFrame({
   loading,
+  uploading,
   images,
   uploadFiles,
   onPreview,
 }: {
   loading: boolean
+  uploading: boolean
   images: Asset[]
   uploadFiles: (files: File[], category?: AssetCategory) => Promise<void>
   onPreview: (asset: Asset) => void
@@ -388,6 +402,7 @@ function ImagesFrame({
         </button>
       }
     >
+      {uploading && <UploadingBar />}
       <div className="p-4">
         {loading ? (
           <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
@@ -438,11 +453,13 @@ function ImagesFrame({
 
 function VideosFrame({
   loading,
+  uploading,
   videos,
   uploadFiles,
   onPreview,
 }: {
   loading: boolean
+  uploading: boolean
   videos: Asset[]
   uploadFiles: (files: File[], category?: AssetCategory) => Promise<void>
   onPreview: (asset: Asset) => void
@@ -474,6 +491,7 @@ function VideosFrame({
         </button>
       }
     >
+      {uploading && <UploadingBar />}
       <div className="p-4">
         {loading ? (
           <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
@@ -516,11 +534,13 @@ function VideosFrame({
 
 function FilesFrame({
   loading,
+  uploading,
   files,
   uploadFiles,
   onPreview,
 }: {
   loading: boolean
+  uploading: boolean
   files: Asset[]
   uploadFiles: (files: File[], category?: AssetCategory) => Promise<void>
   onPreview: (asset: Asset) => void
@@ -552,6 +572,7 @@ function FilesFrame({
         </button>
       }
     >
+      {uploading && <UploadingBar />}
       <div className="p-4">
         {loading ? (
           <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>

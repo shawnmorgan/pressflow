@@ -145,6 +145,55 @@ export function TreeLayout({
     return items.find((i) => i.id === dragId)?.parentId !== targetId
   }
 
+  // Connection anchor dots on every node: left, right, bottom
+  const dotColor = 'color-mix(in srgb, var(--foreground) 25%, transparent)'
+  const dotColorActive = 'color-mix(in srgb, var(--foreground) 45%, transparent)'
+  const anchorDots: ReactNode[] = []
+  const hasChildren = new Set<string>()
+  const hasParent = new Set<string>()
+  for (const it of items) {
+    if (it.parentId) {
+      hasParent.add(it.id)
+      hasChildren.add(it.parentId)
+    }
+  }
+
+  for (const it of items) {
+    const p = pos[it.id]
+    if (!p) continue
+    const h = heightOf(it.id)
+    // Left anchor (entry point)
+    anchorDots.push(
+      <circle
+        key={`anchor-l-${it.id}`}
+        cx={p.x}
+        cy={p.y + h / 2}
+        r={hasParent.has(it.id) ? 4 : 3}
+        fill={hasParent.has(it.id) ? dotColorActive : dotColor}
+      />,
+    )
+    // Right anchor (exit to children)
+    anchorDots.push(
+      <circle
+        key={`anchor-r-${it.id}`}
+        cx={p.x + nodeWidth}
+        cy={p.y + h / 2}
+        r={hasChildren.has(it.id) ? 4 : 3}
+        fill={hasChildren.has(it.id) ? dotColorActive : dotColor}
+      />,
+    )
+    // Bottom anchor
+    anchorDots.push(
+      <circle
+        key={`anchor-b-${it.id}`}
+        cx={p.x + nodeWidth / 2}
+        cy={p.y + h}
+        r={3}
+        fill={dotColor}
+      />,
+    )
+  }
+
   // Connectors: horizontal bezier curves from parent right-center to child left-center
   const connectors: ReactNode[] = []
   for (const it of items) {
@@ -164,23 +213,6 @@ export function TreeLayout({
         fill="none"
         stroke="color-mix(in srgb, var(--foreground) 35%, transparent)"
         strokeWidth={2}
-      />,
-    )
-    // Connection dots at start and end
-    connectors.push(
-      <circle
-        key={`dot-start-${it.id}`}
-        cx={startX}
-        cy={startY}
-        r={3}
-        fill="color-mix(in srgb, var(--foreground) 35%, transparent)"
-      />,
-      <circle
-        key={`dot-end-${it.id}`}
-        cx={endX}
-        cy={endY}
-        r={3}
-        fill="color-mix(in srgb, var(--foreground) 35%, transparent)"
       />,
     )
   }
@@ -214,6 +246,7 @@ export function TreeLayout({
           height={maxBottom + 56}
         >
           {connectors}
+          {anchorDots}
         </svg>
 
         {/* Nodes */}

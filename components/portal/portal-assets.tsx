@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
+  Check,
   Download,
   Eye,
   Film,
@@ -58,6 +59,48 @@ function formatExt(mime: string | null) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Inline toast                                                        */
+/* ------------------------------------------------------------------ */
+
+type ToastType = 'success' | 'error'
+
+function usePortalToast() {
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const show = useCallback((message: string, type: ToastType = 'success') => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setToast({ message, type })
+    timerRef.current = setTimeout(() => setToast(null), 3500)
+  }, [])
+
+  return { toast, show }
+}
+
+function PortalToast({ message, type }: { message: string; type: ToastType }) {
+  return (
+    <div
+      style={{ animation: 'portalToastIn 0.25s ease-out' }}
+      className={`fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-sm border px-4 py-2.5 shadow-lg ${
+        type === 'success'
+          ? 'border-primary/20 bg-primary/10 text-primary'
+          : 'border-[#d63638]/20 bg-[#d63638]/10 text-[#d63638]'
+      }`}
+    >
+      <style>{`@keyframes portalToastIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }`}</style>
+      <div className="flex items-center gap-2">
+        {type === 'success' ? (
+          <Check className="size-4 shrink-0" />
+        ) : (
+          <X className="size-4 shrink-0" />
+        )}
+        <span className="text-[13px] font-medium">{message}</span>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /* Main component                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -65,10 +108,12 @@ export function PortalAssets({ token }: { token: string }) {
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [detailAsset, setDetailAsset] = useState<Asset | null>(null)
   const [pendingSlot, setPendingSlot] = useState<BrandingSlot | null>(null)
   const brandingInputRef = useRef<HTMLInputElement>(null)
+  const { toast, show: showToast } = usePortalToast()
 
   const loadAssets = useCallback(async () => {
     const res = await fetch(`/api/portal/assets?token=${token}`)
@@ -80,22 +125,50 @@ export function PortalAssets({ token }: { token: string }) {
 
   useEffect(() => { loadAssets() }, [loadAssets])
 
-  const uploadFile = async (file: File, category?: string, slot?: string) => {
-    setUploading(true)
+  const uploadFile = async (file: File, category?: string, slot?: string): Promise<boolean> => {
     const formData = new FormData()
     formData.append('token', token)
     formData.append('file', file)
     if (category) formData.append('category', category)
     if (slot) formData.append('slot', slot)
 
-    await fetch('/api/portal/assets', { method: 'POST', body: formData })
-    setUploading(false)
-    loadAssets()
+    try {
+      const res = await fetch('/api/portal/assets', { method: 'POST', body: formData })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: 'Upload failed' }))
+        showToast(body.error || 'Upload failed', 'error')
+        return false
+      }
+      return true
+    } catch {
+      showToast('Network error — please try again', 'error')
+      return false
+    }
   }
 
   const uploadFiles = async (files: File[], category?: string) => {
-    for (const file of files) {
-      await uploadFile(file, category)
+    if (files.length === 0) return
+    setUploading(true)
+    setUploadProgress({ current: 0, total: files.length })
+    let successCount = 0
+
+    for (let i = 0; i < files.length; i++) {
+      setUploadProgress({ current: i + 1, total: files.length })
+      const ok = await uploadFile(files[i], category)
+      if (ok) successCount++
+    }
+
+    setUploading(false)
+    setUploadProgress(null)
+    await loadAssets()
+
+    if (successCount > 0) {
+      showToast(
+        successCount === 1
+          ? `${files[0].name} uploaded`
+          : `${successCount} file${successCount === 1 ? '' : 's'} uploaded`,
+        'success',
+      )
     }
   }
 
@@ -124,9 +197,15 @@ export function PortalAssets({ token }: { token: string }) {
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={(e) => {
+        onChange={async (e) => {
           if (e.target.files?.length && pendingSlot) {
-            uploadFile(e.target.files[0], 'branding', pendingSlot)
+            setUploading(true)
+            const ok = await uploadFile(e.target.files[0], 'branding', pendingSlot)
+            setUploading(false)
+            if (ok) {
+              await loadAssets()
+              showToast(`${pendingSlot === 'logo' ? 'Logo' : pendingSlot === 'logo-variation' ? 'Logo variation' : 'Site icon'} uploaded`, 'success')
+            }
           }
           e.target.value = ''
           setPendingSlot(null)
@@ -152,6 +231,28 @@ export function PortalAssets({ token }: { token: string }) {
                 Drop files to upload
               </span>
             </div>
+          </div>
+        )}
+
+        {/* Upload progress bar */}
+        {uploading && uploadProgress && (
+          <div className="rounded-sm border border-primary/20 bg-primary/5 p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span className="text-[13px] font-medium text-foreground">
+                  Uploading{uploadProgress.total > 1 ? ` ${uploadProgress.current}/${uploadProgress.total}` : ''}...
+                </span>
+              </div>
+            </div>
+            {uploadProgress.total > 1 && (
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{ width: `${Math.round((uploadProgress.current / uploadProgress.total) * 100)}%` }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -200,7 +301,8 @@ export function PortalAssets({ token }: { token: string }) {
                     <button
                       type="button"
                       onClick={() => handleBrandingUpload(slot)}
-                      className="rounded-sm border border-border bg-background px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
+                      disabled={uploading}
+                      className="rounded-sm border border-border bg-background px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30 disabled:opacity-50"
                     >
                       Replace
                     </button>
@@ -330,6 +432,9 @@ export function PortalAssets({ token }: { token: string }) {
           onClose={() => setDetailAsset(null)}
         />
       )}
+
+      {/* Toast notification */}
+      {toast && <PortalToast message={toast.message} type={toast.type} />}
     </>
   )
 }

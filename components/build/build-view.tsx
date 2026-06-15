@@ -294,6 +294,7 @@ export function BuildView({ pages, setPages, ds }: Props) {
                 frameId={`page-${page.id}`}
                 width={FRAME_WIDTH}
                 active={isActive}
+                disableDrag
                 onTitleClick={() => {
                   setActivePageId(page.id)
                   setSelectedSectionId(null)

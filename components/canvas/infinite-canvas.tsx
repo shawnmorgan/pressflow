@@ -88,12 +88,26 @@ export function InfiniteCanvas({
     return () => el.removeEventListener('wheel', onWheel)
   }, [zoomBy])
 
-  // Space to enable grab-pan anywhere.
+  // Space to enable grab-pan anywhere; Cmd+/- to zoom.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !isTyping(e.target)) {
         e.preventDefault()
         setSpaceDown(true)
+        return
+      }
+      // Cmd+= / Cmd+- / Ctrl+= / Ctrl+- to zoom
+      if ((e.metaKey || e.ctrlKey) && !isTyping(e.target)) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault()
+          zoomBy(1.15)
+        } else if (e.key === '-') {
+          e.preventDefault()
+          zoomBy(0.85)
+        } else if (e.key === '0') {
+          e.preventDefault()
+          setT({ x: 80, y: 80, scale: 1 })
+        }
       }
     }
     const up = (e: KeyboardEvent) => {
@@ -105,7 +119,7 @@ export function InfiniteCanvas({
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [])
+  }, [zoomBy])
 
   const startPan = (e: React.MouseEvent) => {
     // Always pan when holding space.

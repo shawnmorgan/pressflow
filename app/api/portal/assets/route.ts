@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
 
   // Return signed URL for the newly uploaded asset
   let signedUrl: string | null = null
-  if (isImage || cat === 'branding') {
+  if (isImage || isVideo || cat === 'branding') {
     const { data: signed } = await sb.storage
       .from('assets')
       .createSignedUrl(storagePath, 3600)
