@@ -1,5 +1,4 @@
 import {
-  DEFAULT_PAGES,
   headingLevel,
   type Page,
   type Section,
@@ -8,6 +7,7 @@ import {
   DEFAULT_DESIGN_SYSTEM,
   type DesignSystem,
 } from '@/lib/design-system'
+import { invokeEdgeFunction } from '@/lib/edge-functions'
 
 /* =========================================================================
  * Client Portal model — the white-labeled, client-facing source of truth.
@@ -155,82 +155,48 @@ const DEFAULT_AGENCY: AgencyBrand = {
   contactEmail: '',
 }
 
-/* ---------- DB-backed resolution (server-only) ---------- */
+/* ---------- Edge-function-backed resolution ---------- */
 
 /**
- * Resolve a portal access token to a project using Supabase.
- * Must be called from a server context with the secret key client.
+ * Resolve a portal access token via the resolve-share edge function.
+ * No secret key needed — the edge function validates the token and
+ * returns the project lens. Safe to call from any server context.
  */
 export async function resolveClientProject(
-  supabase: { from: (table: string) => any },
   token: string,
 ): Promise<ClientProject | null> {
-  // Look up the share by token
-  const { data: share } = await supabase
-    .from('shares')
-    .select('id, project_id, token, visible_views, can_comment')
-    .eq('token', token)
-    .eq('revoked', false)
-    .maybeSingle()
+  const { data, error } = await invokeEdgeFunction<any>('resolve-share', { token })
 
-  if (!share) return null
+  if (error || !data) return null
 
-  // Load project + account white_label
-  const { data: project } = await supabase
-    .from('projects')
-    .select('name, client_name, client_domain, stage, calendar_link, relevant_links, account_id, accounts(name, white_label)')
-    .eq('id', share.project_id)
-    .single()
+  const pages: Page[] = (data.pages ?? []).map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    slug: r.slug,
+    parentId: r.parentId,
+    sections: r.sections ?? [],
+  }))
 
-  if (!project) return null
-
-  // Load pages
-  const { data: pagesData } = await supabase
-    .from('pages')
-    .select('id, name, slug, parent_id, position, sections')
-    .eq('project_id', share.project_id)
-    .order('position')
-
-  // Load design system
-  const { data: dsData } = await supabase
-    .from('design_systems')
-    .select('tokens')
-    .eq('project_id', share.project_id)
-    .single()
-
-  const pages: Page[] = pagesData
-    ? pagesData.map((r: any) => ({
-        id: r.id,
-        name: r.name,
-        slug: r.slug,
-        parentId: r.parent_id,
-        sections: r.sections ?? [],
-      }))
-    : DEFAULT_PAGES
-
-  const ds: DesignSystem = dsData?.tokens
-    ? (dsData.tokens as DesignSystem)
+  const ds: DesignSystem = data.ds
+    ? (data.ds as DesignSystem)
     : DEFAULT_DESIGN_SYSTEM
 
-  // Build agency brand from account white_label or defaults
-  const account = project.accounts as any
-  const wl = account?.white_label ?? {}
   const agency: AgencyBrand = {
-    name: wl.name ?? account?.name ?? DEFAULT_AGENCY.name,
-    initials: wl.initials ?? (account?.name?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()) ?? DEFAULT_AGENCY.initials,
-    accent: wl.accent ?? DEFAULT_AGENCY.accent,
-    contactEmail: wl.contactEmail ?? DEFAULT_AGENCY.contactEmail,
+    name: data.agency?.name ?? DEFAULT_AGENCY.name,
+    initials: data.agency?.initials ?? DEFAULT_AGENCY.initials,
+    accent: data.agency?.accent ?? DEFAULT_AGENCY.accent,
+    contactEmail: data.agency?.contactEmail ?? DEFAULT_AGENCY.contactEmail,
   }
 
   return {
-    token: share.token,
+    token: data.token,
     agency,
-    projectName: project.name,
-    clientName: project.client_name ?? '',
-    domain: project.client_domain ?? '',
-    stage: (project.stage as PortalStage) ?? 'onboarding',
-    calendarLink: project.calendar_link ?? '',
-    links: (project.relevant_links as RelevantLink[]) ?? [],
+    projectName: data.projectName ?? '',
+    clientName: data.clientName ?? '',
+    domain: data.domain ?? '',
+    stage: (data.stage as PortalStage) ?? 'onboarding',
+    calendarLink: data.calendarLink ?? '',
+    links: (data.links as RelevantLink[]) ?? [],
     pages,
     ds,
   }

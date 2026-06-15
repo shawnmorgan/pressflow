@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSecretSupabase } from '@/lib/supabase-server'
 import { resolveClientProject } from '@/lib/client-portal'
 
 /**
  * GET /api/portal/[token]
  *
  * Resolves a share token to full project data for the client portal.
- * Uses secret key to bypass RLS (portal is unauthenticated).
+ * Delegates to the resolve-share edge function (no secret key needed).
  */
 export async function GET(
   _req: NextRequest,
@@ -15,8 +14,7 @@ export async function GET(
   const { token } = await params
 
   try {
-    const supabase = getSecretSupabase()
-    const project = await resolveClientProject(supabase, token)
+    const project = await resolveClientProject(token)
 
     if (!project) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 404 })

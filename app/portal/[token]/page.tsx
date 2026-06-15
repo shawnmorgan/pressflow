@@ -1,5 +1,4 @@
 import { resolveClientProject } from '@/lib/client-portal'
-import { getSecretSupabase } from '@/lib/supabase-server'
 import { ClientPortal } from '@/components/portal/client-portal'
 
 export default async function PortalPage({
@@ -9,13 +8,7 @@ export default async function PortalPage({
 }) {
   const { token } = await params
 
-  let project = null
-  try {
-    const supabase = getSecretSupabase()
-    project = await resolveClientProject(supabase, token)
-  } catch {
-    // Secret key not configured — show error
-  }
+  const project = await resolveClientProject(token)
 
   if (!project) {
     return (
