@@ -1,7 +1,9 @@
 'use client'
 
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -10,6 +12,9 @@ import {
 import { Plus, Minus } from '@/components/icons'
 
 type Transform = { x: number; y: number; scale: number }
+
+const CanvasScaleContext = createContext(1)
+export function useCanvasScale() { return useContext(CanvasScaleContext) }
 
 const MIN_SCALE = 0.25
 const MAX_SCALE = 2
@@ -109,9 +114,9 @@ export function InfiniteCanvas({
       setPanning(true)
       return
     }
-    // Pan from any click that isn't inside a frame's content area.
+    // Don't pan when clicking inside frame content or frame headers (headers are drag handles).
     const el = e.target as HTMLElement
-    if (el.closest('[data-frame-content]')) return
+    if (el.closest('[data-frame-content]') || el.closest('[data-frame-header]')) return
     pan.current = { sx: e.clientX, sy: e.clientY, ox: t.x, oy: t.y }
     setPanning(true)
   }
@@ -155,14 +160,16 @@ export function InfiniteCanvas({
         backgroundPosition: `${t.x}px ${t.y}px`,
       }}
     >
-      <div
-        className="absolute left-0 top-0 origin-top-left"
-        style={{
-          transform: `translate(${t.x}px, ${t.y}px) scale(${t.scale})`,
-        }}
-      >
-        {children}
-      </div>
+      <CanvasScaleContext.Provider value={t.scale}>
+        <div
+          className="absolute left-0 top-0 origin-top-left"
+          style={{
+            transform: `translate(${t.x}px, ${t.y}px) scale(${t.scale})`,
+          }}
+        >
+          {children}
+        </div>
+      </CanvasScaleContext.Provider>
 
       {/* Non-transformed floating overlay layer for view controls. */}
       {overlay && (

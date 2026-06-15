@@ -1,10 +1,15 @@
 'use client'
 
-import { type ReactNode } from 'react'
+import { useRef, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { useCanvasScale } from '@/components/canvas/infinite-canvas'
 
 /**
  * A titled frame placed in canvas space — a labeled card with a header strip.
  * Used for stylesheet / page / export frames on the infinite canvas.
+ *
+ * The titlebar is a drag handle: click-and-hold to reposition the frame on the
+ * canvas. The offset is stored locally (CSS translate) so the parent layout is
+ * unaffected.
  */
 export function Frame({
   title,
@@ -23,24 +28,109 @@ export function Frame({
   onTitleClick?: () => void
   active?: boolean
 }) {
+  const scale = useCanvasScale()
+  const scaleRef = useRef(scale)
+  scaleRef.current = scale
+  const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [dragging, setDragging] = useState(false)
+  const dragRef = useRef<{
+    startX: number
+    startY: number
+    origX: number
+    origY: number
+  } | null>(null)
+  const movedRef = useRef(false)
+
+  const onHeaderDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Only primary button; ignore if clicking a button/input inside the header
+      if (e.button !== 0) return
+      const target = e.target as HTMLElement
+      if (target.closest('button, a, input, select, textarea')) return
+
+      e.preventDefault()
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origX: offset.x,
+        origY: offset.y,
+      }
+      movedRef.current = false
+      setDragging(true)
+    },
+    [offset],
+  )
+
+  useEffect(() => {
+    if (!dragging) return
+
+    const onMove = (e: MouseEvent) => {
+      if (!dragRef.current) return
+      const dx = e.clientX - dragRef.current.startX
+      const dy = e.clientY - dragRef.current.startY
+      if (!movedRef.current && Math.abs(dx) + Math.abs(dy) > 3) {
+        movedRef.current = true
+      }
+      // Divide by canvas scale so the frame moves 1:1 with the cursor
+      setOffset({
+        x: dragRef.current.origX + dx / scaleRef.current,
+        y: dragRef.current.origY + dy / scaleRef.current,
+      })
+    }
+
+    const onUp = () => {
+      dragRef.current = null
+      setDragging(false)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [dragging])
+
+  const handleTitleClick = () => {
+    // Only fire onTitleClick if we didn't drag
+    if (!movedRef.current && onTitleClick) onTitleClick()
+  }
+
+  const hasOffset = offset.x !== 0 || offset.y !== 0
+
   return (
     <div
       className={`flex flex-col rounded-sm border bg-card shadow-sm transition-shadow ${
         active ? 'border-primary shadow-md' : 'border-border'
       }`}
-      style={{ width }}
+      style={{
+        width,
+        transform: hasOffset ? `translate(${offset.x}px, ${offset.y}px)` : undefined,
+        zIndex: dragging ? 100 : undefined,
+        position: 'relative',
+      }}
     >
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <button
-          type="button"
-          onClick={onTitleClick}
+      <div
+        data-frame-header
+        className={`flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2 ${
+          dragging ? 'cursor-grabbing' : 'cursor-grab'
+        }`}
+        onMouseDown={onHeaderDown}
+      >
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={handleTitleClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') handleTitleClick()
+          }}
           className="flex items-center gap-2 text-left"
         >
           <span className="text-[13px] font-semibold text-foreground">
             {title}
           </span>
           {badge}
-        </button>
+        </div>
         {headerRight}
       </div>
       <div data-frame-content className="min-h-0 flex-1">{children}</div>
