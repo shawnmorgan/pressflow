@@ -21,12 +21,12 @@ function recognize(el: Element): Recognition | null {
     return { type: 'Hero', confidence: has('hero', 'masthead') ? 'high' : 'low' }
   if (has('pricing', 'price', 'plans')) return { type: 'Pricing', confidence: 'high' }
   if (has('faq', 'accordion', 'questions')) return { type: 'FAQ', confidence: 'high' }
-  if (has('testimonial', 'review', 'quote')) return { type: 'Testimonials', confidence: 'high' }
-  if (has('logo', 'brands', 'clients')) return { type: 'LogoRow', confidence: 'high' }
-  if (has('cta', 'call-to-action', 'callout')) return { type: 'CTABand', confidence: 'high' }
+  if (has('testimonial', 'review', 'quote')) return { type: 'Testimonial', confidence: 'high' }
+  if (has('logo', 'brands', 'clients')) return { type: 'Feature', confidence: 'high' }
+  if (has('cta', 'call-to-action', 'callout')) return { type: 'CTA', confidence: 'high' }
   if (has('feature', 'benefits', 'cards', 'grid'))
-    return { type: 'FeatureGrid', confidence: 'high' }
-  if (has('media', 'split', 'two-column')) return { type: 'FeatureMedia', confidence: 'low' }
+    return { type: 'Feature', confidence: 'high' }
+  if (has('media', 'split', 'two-column')) return { type: 'TextMedia', confidence: 'low' }
   return null
 }
 

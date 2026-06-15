@@ -3,13 +3,12 @@ export type SectionSource = 'generated' | 'imported' | 'library' | 'opaque'
 export type SectionType =
   | 'Navbar'
   | 'Hero'
-  | 'LogoRow'
-  | 'FeatureGrid'
-  | 'FeatureMedia'
-  | 'Testimonials'
+  | 'TextMedia'
+  | 'Feature'
+  | 'Testimonial'
   | 'Pricing'
   | 'FAQ'
-  | 'CTABand'
+  | 'CTA'
   | 'Footer'
   | 'Opaque'
 
@@ -27,8 +26,8 @@ export type ElementState = { on: boolean; text: string }
 export type ButtonEl = { id: string; text: string }
 
 /**
- * The full element set a section can contain. Each is independently toggleable
- * so the structural modal can add/remove primitives without touching layout.
+ * Per-type element model. Common fields are shared; type-specific fields are
+ * optional and only populated for their respective section types.
  */
 export type SectionElements = {
   eyebrow: ElementState
@@ -39,6 +38,14 @@ export type SectionElements = {
   image: { on: boolean }
   icon: { on: boolean }
   list: { on: boolean; items: string[] }
+  /** Navbar-specific: navigation link labels */
+  navLinks?: string[]
+  /** TextMedia-specific: media placement */
+  layout?: 'left' | 'right'
+  /** Footer-specific: legal / copyright bar */
+  legalBar?: ElementState
+  /** Footer-specific: show social icons placeholder */
+  social?: { on: boolean }
 }
 
 export type Section = {
@@ -48,7 +55,7 @@ export type Section = {
   /** null = use the derived level for this section type */
   headingLevelOverride: number | null
   elements: SectionElements
-  /** Card collection — only populated for card-based section types. */
+  /** Card collection — repeatable items (features, testimonials, tiers, FAQ, footer columns). */
   cards: Card[]
   /** Preserved markup for imported, unrecognized sections. */
   opaqueHtml?: string
@@ -72,14 +79,13 @@ export const SECTION_META: Record<
 > = {
   Navbar: { label: 'Navbar', hasCards: false, cardLabel: '', desc: 'Logo + navigation links' },
   Hero: { label: 'Hero', hasCards: false, cardLabel: '', desc: 'Headline, lead copy, primary CTA' },
-  LogoRow: { label: 'Logo Row', hasCards: true, cardLabel: 'Logo', desc: 'Row of partner / client logos' },
-  FeatureGrid: { label: 'Feature Grid', hasCards: true, cardLabel: 'Feature', desc: 'Grid of feature cards' },
-  FeatureMedia: { label: 'Feature (Content + Media)', hasCards: false, cardLabel: '', desc: 'Split content beside an image' },
-  Testimonials: { label: 'Testimonials', hasCards: true, cardLabel: 'Testimonial', desc: 'Customer quotes' },
-  Pricing: { label: 'Pricing', hasCards: true, cardLabel: 'Plan', desc: 'Pricing tiers' },
+  TextMedia: { label: 'Text + Media', hasCards: false, cardLabel: '', desc: 'Split content beside an image or video' },
+  Feature: { label: 'Feature', hasCards: true, cardLabel: 'Feature', desc: 'Grid of feature cards with icons' },
+  Testimonial: { label: 'Testimonial', hasCards: true, cardLabel: 'Testimonial', desc: 'Customer quotes and reviews' },
+  Pricing: { label: 'Pricing', hasCards: true, cardLabel: 'Tier', desc: 'Pricing tiers with features' },
   FAQ: { label: 'FAQ', hasCards: true, cardLabel: 'Question', desc: 'Question / answer list' },
-  CTABand: { label: 'CTA Band', hasCards: false, cardLabel: '', desc: 'Full-width call to action' },
-  Footer: { label: 'Footer', hasCards: false, cardLabel: '', desc: 'Links + fine print' },
+  CTA: { label: 'CTA', hasCards: false, cardLabel: '', desc: 'Full-width call to action' },
+  Footer: { label: 'Footer', hasCards: true, cardLabel: 'Column', desc: 'Footer columns, links + legal' },
   Opaque: { label: 'Opaque / Custom', hasCards: false, cardLabel: '', desc: 'Preserved imported markup' },
 }
 
@@ -87,13 +93,12 @@ export const SECTION_META: Record<
 export const INSERTABLE_TYPES: SectionType[] = [
   'Navbar',
   'Hero',
-  'LogoRow',
-  'FeatureGrid',
-  'FeatureMedia',
-  'Testimonials',
+  'TextMedia',
+  'Feature',
+  'Testimonial',
   'Pricing',
   'FAQ',
-  'CTABand',
+  'CTA',
   'Footer',
 ]
 
@@ -161,7 +166,7 @@ function template(type: SectionType): { elements: SectionElements; cards: Card[]
   const e = emptyElements()
   switch (type) {
     case 'Navbar':
-      e.list = { on: true, items: ['Features', 'Pricing', 'About', 'Contact'] }
+      e.navLinks = ['Features', 'Pricing', 'About', 'Contact']
       e.buttons = [{ id: uid('btn'), text: 'Get started' }]
       e.image = { on: true } // logo
       return { elements: e, cards: [] }
@@ -179,31 +184,7 @@ function template(type: SectionType): { elements: SectionElements; cards: Card[]
       ]
       e.image = { on: true }
       return { elements: e, cards: [] }
-    case 'LogoRow':
-      e.heading = el(true, 'Trusted by modern publishers')
-      return {
-        elements: e,
-        cards: [
-          card('Image', 'Acme', ''),
-          card('Image', 'Globex', ''),
-          card('Image', 'Initech', ''),
-          card('Image', 'Umbra', ''),
-          card('Image', 'Stark', ''),
-        ],
-      }
-    case 'FeatureGrid':
-      e.eyebrow = el(true, 'Capabilities')
-      e.heading = el(true, 'Everything you need to launch')
-      e.subheading = el(true, 'A complete, token-driven toolkit')
-      return {
-        elements: e,
-        cards: [
-          card('Icon', 'Design tokens', 'One locked global style, compiled to theme.json.'),
-          card('Icon', 'Reusable sections', 'Assemble pages from structured blocks.'),
-          card('Icon', 'Clean export', 'Ship native WordPress block markup.'),
-        ],
-      }
-    case 'FeatureMedia':
+    case 'TextMedia':
       e.eyebrow = el(true, 'Workflow')
       e.heading = el(true, 'From sitemap to shipped theme')
       e.body = el(
@@ -216,15 +197,28 @@ function template(type: SectionType): { elements: SectionElements; cards: Card[]
       }
       e.buttons = [{ id: uid('btn'), text: 'Learn more' }]
       e.image = { on: true }
+      e.layout = 'right'
       return { elements: e, cards: [] }
-    case 'Testimonials':
+    case 'Feature':
+      e.eyebrow = el(true, 'Capabilities')
+      e.heading = el(true, 'Everything you need to launch')
+      e.subheading = el(true, 'A complete, token-driven toolkit')
+      return {
+        elements: e,
+        cards: [
+          card('Icon', 'Design tokens', 'One locked global style, compiled to theme.json.'),
+          card('Icon', 'Reusable sections', 'Assemble pages from structured blocks.'),
+          card('Icon', 'Clean export', 'Ship native WordPress block markup.'),
+        ],
+      }
+    case 'Testimonial':
       e.heading = el(true, 'Loved by editorial teams')
       e.subheading = el(true, 'What our customers say')
       return {
         elements: e,
         cards: [
-          card('Image', 'Dana Okafor', '“PressFlow cut our theme build time in half.”'),
-          card('Image', 'Liam Reyes', '“The export is genuinely clean block markup.”'),
+          card('Image', 'Dana Okafor', '"PressFlow cut our theme build time in half."'),
+          card('Image', 'Liam Reyes', '"The export is genuinely clean block markup."'),
         ],
       }
     case 'Pricing':
@@ -248,16 +242,24 @@ function template(type: SectionType): { elements: SectionElements; cards: Card[]
           card('None', 'Can I bring my own AI?', 'Yes. Your tokens, your inference, flat price.'),
         ],
       }
-    case 'CTABand':
+    case 'CTA':
       e.heading = el(true, 'Ready to build your theme?')
       e.body = el(true, 'Turn your sitemap into a native WordPress theme today.')
       e.buttons = [{ id: uid('btn'), text: 'Start building' }]
       return { elements: e, cards: [] }
     case 'Footer':
-      e.body = el(true, '© PressFlow. All rights reserved.')
-      e.list = { on: true, items: ['Privacy', 'Terms', 'Status', 'Contact'] }
+      e.body = el(true, '\u00a9 PressFlow. All rights reserved.')
+      e.legalBar = el(true, '\u00a9 PressFlow. All rights reserved.')
       e.image = { on: true } // logo
-      return { elements: e, cards: [] }
+      e.social = { on: true }
+      return {
+        elements: e,
+        cards: [
+          card('None', 'Product', 'Features\nPricing\nChangelog'),
+          card('None', 'Company', 'About\nBlog\nCareers'),
+          card('None', 'Legal', 'Privacy\nTerms\nStatus'),
+        ],
+      }
     case 'Opaque':
     default:
       e.body = el(true, 'Imported markup preserved as-is.')
@@ -299,6 +301,36 @@ export function opaqueSection(label: string, html: string): Section {
   }
 }
 
+/**
+ * Migrate a section from legacy type names to current names.
+ * Handles DB records that may have old type values.
+ */
+export function migrateSection(section: Section): Section {
+  const typeMap: Record<string, SectionType> = {
+    FeatureMedia: 'TextMedia',
+    FeatureGrid: 'Feature',
+    CTABand: 'CTA',
+    Testimonials: 'Testimonial',
+    LogoRow: 'Feature', // LogoRow absorbed into Feature
+  }
+  const newType = typeMap[section.type as string]
+  if (newType) {
+    return { ...section, type: newType }
+  }
+  return section
+}
+
+/**
+ * Migrate a page's sections from legacy types.
+ */
+export function migratePage(page: Page): Page {
+  const migrated = page.sections.map(migrateSection)
+  if (migrated.some((s, i) => s !== page.sections[i])) {
+    return { ...page, sections: migrated }
+  }
+  return page
+}
+
 /* ---------- Default sitemap ---------- */
 
 function seed(
@@ -322,9 +354,8 @@ export const DEFAULT_PAGES: Page[] = [
     sections: seed([
       { type: 'Navbar', source: 'generated' },
       { type: 'Hero', source: 'generated' },
-      { type: 'LogoRow', source: 'library' },
-      { type: 'FeatureGrid', source: 'generated' },
-      { type: 'CTABand', source: 'generated' },
+      { type: 'Feature', source: 'generated' },
+      { type: 'CTA', source: 'generated' },
       { type: 'Footer', source: 'generated' },
     ]),
   },
@@ -336,8 +367,8 @@ export const DEFAULT_PAGES: Page[] = [
     sections: seed([
       { type: 'Navbar', source: 'generated' },
       { type: 'Hero', source: 'imported' },
-      { type: 'FeatureMedia', source: 'imported' },
-      { type: 'Testimonials', source: 'library' },
+      { type: 'TextMedia', source: 'imported' },
+      { type: 'Testimonial', source: 'library' },
       { type: 'Footer', source: 'generated' },
     ]),
   },
@@ -349,8 +380,8 @@ export const DEFAULT_PAGES: Page[] = [
     sections: seed([
       { type: 'Navbar', source: 'generated' },
       { type: 'Hero', source: 'generated' },
-      { type: 'FeatureGrid', source: 'generated' },
-      { type: 'CTABand', source: 'generated' },
+      { type: 'Feature', source: 'generated' },
+      { type: 'CTA', source: 'generated' },
       { type: 'Footer', source: 'generated' },
     ]),
   },
@@ -381,26 +412,71 @@ export const DEFAULT_PAGES: Page[] = [
 
 /* ---------- Element inventory (for structural views) ---------- */
 
-/** A compact list of the active element labels in a section. */
+/** Per-type summary of active elements in a section. */
 export function elementSummary(section: Section): string[] {
   if (section.type === 'Opaque') return ['Raw markup']
   const e = section.elements
   const out: string[] = []
-  if (e.eyebrow.on) out.push('Eyebrow')
-  if (e.heading.on) out.push(`H${headingLevel(section)}`)
-  if (e.subheading.on) out.push('Subheading')
-  if (e.body.on) out.push('Body')
-  if (e.buttons.length) out.push(`${e.buttons.length} button${e.buttons.length > 1 ? 's' : ''}`)
-  if (e.image.on) out.push('Image')
-  if (e.icon.on) out.push('Icon')
-  if (e.list.on) out.push(`List (${e.list.items.length})`)
-  if (SECTION_META[section.type].hasCards)
-    out.push(`${section.cards.length} ${SECTION_META[section.type].cardLabel.toLowerCase()}s`)
+
+  switch (section.type) {
+    case 'Navbar':
+      if (e.image?.on) out.push('Logo')
+      if (e.navLinks?.length) out.push(`${e.navLinks.length} links`)
+      else if (e.list?.on) out.push(`${e.list.items.length} links`)
+      if (e.buttons.length) out.push(`${e.buttons.length} button${e.buttons.length > 1 ? 's' : ''}`)
+      break
+    case 'Hero':
+      if (e.eyebrow.on) out.push('Eyebrow')
+      if (e.heading.on) out.push('H1')
+      if (e.subheading.on) out.push('Subheading')
+      if (e.body.on) out.push('Body')
+      if (e.buttons.length) out.push(`${e.buttons.length} button${e.buttons.length > 1 ? 's' : ''}`)
+      if (e.image?.on) out.push('Media')
+      break
+    case 'TextMedia':
+      if (e.heading.on) out.push(`H${headingLevel(section)}`)
+      if (e.body.on) out.push('Body')
+      if (e.image?.on) out.push('Media')
+      if (e.layout) out.push(`Layout: ${e.layout}`)
+      if (e.list?.on) out.push(`List (${e.list.items.length})`)
+      if (e.buttons.length) out.push(`${e.buttons.length} button${e.buttons.length > 1 ? 's' : ''}`)
+      break
+    case 'Feature':
+      if (e.eyebrow.on) out.push('Eyebrow')
+      if (e.heading.on) out.push(`H${headingLevel(section)}`)
+      if (e.subheading.on) out.push('Subheading')
+      out.push(`${section.cards.length} feature${section.cards.length !== 1 ? 's' : ''}`)
+      break
+    case 'Testimonial':
+      if (e.heading.on) out.push(`H${headingLevel(section)}`)
+      out.push(`${section.cards.length} testimonial${section.cards.length !== 1 ? 's' : ''}`)
+      break
+    case 'Pricing':
+      if (e.heading.on) out.push(`H${headingLevel(section)}`)
+      if (e.subheading.on) out.push('Subheading')
+      out.push(`${section.cards.length} tier${section.cards.length !== 1 ? 's' : ''}`)
+      break
+    case 'FAQ':
+      if (e.heading.on) out.push(`H${headingLevel(section)}`)
+      out.push(`${section.cards.length} question${section.cards.length !== 1 ? 's' : ''}`)
+      break
+    case 'CTA':
+      if (e.heading.on) out.push(`H${headingLevel(section)}`)
+      if (e.body.on) out.push('Body')
+      if (e.buttons.length) out.push(`${e.buttons.length} button${e.buttons.length > 1 ? 's' : ''}`)
+      break
+    case 'Footer':
+      if (e.image?.on) out.push('Logo')
+      out.push(`${section.cards.length} column${section.cards.length !== 1 ? 's' : ''}`)
+      if (e.legalBar?.on) out.push('Legal bar')
+      if (e.social?.on) out.push('Social')
+      break
+  }
   return out
 }
 
 export function sectionLabel(section: Section): string {
   if (section.type === 'Opaque' && section.opaqueLabel)
     return `Opaque \u00b7 ${section.opaqueLabel}`
-  return SECTION_META[section.type].label
+  return SECTION_META[section.type]?.label ?? section.type
 }

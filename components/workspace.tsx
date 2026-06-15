@@ -14,7 +14,7 @@ import {
   DEFAULT_DESIGN_SYSTEM,
   type DesignSystem,
 } from '@/lib/design-system'
-import { type Page } from '@/lib/sitemap'
+import { type Page, migratePage } from '@/lib/sitemap'
 import { supabase } from '@/lib/supabase'
 import { useMockupsLoader } from '@/lib/mockups'
 import { useContentFormLoader } from '@/lib/content-forms'
@@ -107,7 +107,7 @@ function WorkspaceInner({ projectId }: { projectId: string }) {
       }
 
       if (pagesRes.data) {
-        resetPages(pagesRes.data.map((r: DbPage) => dbPageToPage(r)))
+        resetPages(pagesRes.data.map((r: DbPage) => migratePage(dbPageToPage(r))))
       }
 
       setLoading(false)
@@ -163,17 +163,17 @@ function WorkspaceInner({ projectId }: { projectId: string }) {
   }, [pages, projectId, loading, showToast])
 
   // Undo/redo — pick the right stack based on current view
-  const canUndo = view === 'Style' ? canUndoDs : (view === 'Sitemap' || view === 'Wireframe') ? canUndoPages : false
-  const canRedo = view === 'Style' ? canRedoDs : (view === 'Sitemap' || view === 'Wireframe') ? canRedoPages : false
+  const canUndo = view === 'Style' ? canUndoDs : view === 'Structure' ? canUndoPages : false
+  const canRedo = view === 'Style' ? canRedoDs : view === 'Structure' ? canRedoPages : false
 
   const handleUndo = useCallback(() => {
     if (view === 'Style') undoDs()
-    else if (view === 'Sitemap' || view === 'Wireframe') undoPages()
+    else if (view === 'Structure') undoPages()
   }, [view, undoDs, undoPages])
 
   const handleRedo = useCallback(() => {
     if (view === 'Style') redoDs()
-    else if (view === 'Sitemap' || view === 'Wireframe') redoPages()
+    else if (view === 'Structure') redoPages()
   }, [view, redoDs, redoPages])
 
   // Keyboard shortcuts: Cmd+Z / Cmd+Shift+Z
@@ -208,22 +208,15 @@ function WorkspaceInner({ projectId }: { projectId: string }) {
         onViewChange={setView}
         onComments={() => setCommentsOpen((v) => !v)}
         commentsActive={commentsOpen}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
       />
       <div className="relative min-h-0 flex-1">
         {view === 'Project' && <ProjectView projectId={projectId} />}
         {view === 'Style' && <StyleView ds={ds} setDs={setDsUndo} />}
         {view === 'Content' && <ContentView projectId={projectId} />}
-        {view === 'Sitemap' && (
-          <BuildView pages={pages} setPages={setPagesUndo} ds={ds} subView="sitemap" />
+        {view === 'Structure' && (
+          <BuildView pages={pages} setPages={setPagesUndo} ds={ds} />
         )}
-        {view === 'Wireframe' && (
-          <BuildView pages={pages} setPages={setPagesUndo} ds={ds} subView="wireframe" />
-        )}
-        {view === 'Mockup' && <MockupView />}
+        {view === 'Mockups' && <MockupView />}
       </div>
 
       {commentsOpen && <CommentsPane onClose={() => setCommentsOpen(false)} projectId={projectId} />}

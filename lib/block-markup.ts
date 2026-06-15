@@ -106,9 +106,9 @@ export function sectionMarkup(section: Section): string {
   }
 
   const tag = type === 'Navbar' ? 'header' : type === 'Footer' ? 'footer' : 'section'
-  const align = type === 'Hero' || type === 'CTABand' ? 'full' : 'wide'
+  const align = type === 'Hero' || type === 'CTA' ? 'full' : 'wide'
   const variation =
-    type === 'CTABand' ? ' "className":"is-style-accent"' : ''
+    type === 'CTA' ? ' "className":"is-style-accent"' : ''
   open(`<!-- wp:group {"align":"${align}","tagName":"${tag}"${variation ? ',' + variation : ''}} -->`)
   open(`<${tag} class="wp-block-group align${align}">`)
 
@@ -116,10 +116,10 @@ export function sectionMarkup(section: Section): string {
   if (e.eyebrow.on) paragraph(e.eyebrow.text, 'eyebrow')
   if (e.heading.on) heading(level, e.heading.text)
   if (e.subheading.on) paragraph(e.subheading.text, 'subheading')
-  if (e.image.on && (type === 'Hero' || type === 'FeatureMedia')) image()
+  if (e.image.on && (type === 'Hero' || type === 'TextMedia')) image()
   if (e.body.on) paragraph(e.body.text)
   if (e.list.on) list(e.list.items)
-  if (SECTION_META[type].hasCards) cardGrid(section.cards)
+  if (SECTION_META[type]?.hasCards) cardGrid(section.cards)
   if (e.buttons.length) buttons(e.buttons)
 
   open(`</${tag}>`)

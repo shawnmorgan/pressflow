@@ -25,17 +25,16 @@ type Props = {
   pages: Page[]
   setPages: (fn: (prev: Page[]) => Page[]) => void
   ds: DesignSystem
-  subView: SubView
 }
 
 const FRAME_WIDTH = 640
 
-export function BuildView({ pages, setPages, ds, subView }: Props) {
+export function BuildView({ pages, setPages, ds }: Props) {
   const [activePageId, setActivePageId] = useState<string>(
     () => pages[0]?.id ?? '',
   )
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
-  const view = subView
+  const [view, setView] = useState<SubView>('sitemap')
   const [editing, setEditing] = useState<{ pageId: string; sectionId: string } | null>(null)
   const [navCollapsed, setNavCollapsed] = useState(true)
   const [importOpen, setImportOpen] = useState(false)
@@ -194,6 +193,26 @@ export function BuildView({ pages, setPages, ds, subView }: Props) {
       <InfiniteCanvas
         overlay={
           <>
+            {/* Top-center sub-view toggle */}
+            <div className="pointer-events-auto absolute left-1/2 top-4 z-[55] -translate-x-1/2">
+              <div className="flex items-center gap-1 rounded-sm border border-border bg-card p-1 shadow-sm">
+                {(['sitemap', 'wireframe'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setView(v)}
+                    className={`rounded-sm px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                      view === v
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                  >
+                    {v === 'sitemap' ? 'Sitemap' : 'Wireframe'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Contextual controls — left vertical stack */}
             <div className="pointer-events-auto absolute bottom-16 left-4 top-4 flex w-60 flex-col gap-2">
               {/* Import HTML */}

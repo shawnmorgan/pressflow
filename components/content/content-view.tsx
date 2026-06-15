@@ -35,6 +35,8 @@ import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
 
+type ContentSubView = 'assets' | 'requests'
+
 const Label = ({ children }: { children: React.ReactNode }) => (
   <span className="text-[10px] font-semibold uppercase tracking-wider text-[#646970]">
     {children}
@@ -43,77 +45,54 @@ const Label = ({ children }: { children: React.ReactNode }) => (
 
 export function ContentView({ projectId }: { projectId?: string }) {
   const forms = useContentForms()
+  const [subView, setSubView] = useState<ContentSubView>('assets')
   const [addFormOpen, setAddFormOpen] = useState(false)
-  const assetInputRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="relative flex h-full">
-      {/* Hidden file input for icon-stack upload */}
-      <input
-        ref={assetInputRef}
-        type="file"
-        multiple
-        accept="image/*,application/pdf,video/*,.zip,.txt,.csv"
-        className="hidden"
-        onChange={(e) => {
-          // Dispatch a custom event that AssetsFrame listens for
-          if (e.target.files?.length) {
-            window.dispatchEvent(new CustomEvent('pressflow:upload-assets', { detail: e.target.files }))
-            e.target.value = ''
-          }
-        }}
-      />
-      {/* Left context icon stack */}
-      <div className="absolute left-4 top-4 z-[55] flex flex-col gap-2">
-        <button
-          type="button"
-          title="Add asset"
-          onClick={() => assetInputRef.current?.click()}
-          className="flex size-9 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
-        >
-          <Upload className="size-4" />
-        </button>
-        <button
-          type="button"
-          title="Add form request"
-          onClick={() => setAddFormOpen(true)}
-          className="flex size-9 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
-        >
-          <Plus className="size-4" />
-        </button>
-      </div>
-
-      <InfiniteCanvas>
-        <div className="flex gap-8 p-24 pl-32">
-          {/* Assets frame */}
-          <AssetsFrame projectId={projectId} />
-
-          {/* Content form frames */}
-          {forms.map((form) => (
-            <ContentFormFrame key={form.id} form={form} projectId={projectId} />
-          ))}
-
-          {/* Empty state when no forms */}
-          {forms.length === 0 && !addFormOpen && (
-            <Frame title="Content collection" width={480}>
-              <div className="flex flex-col items-center gap-4 px-5 py-12 text-center">
-                <FileCode className="size-8 text-muted-foreground/50" />
-                <div>
-                  <p className="text-[13px] font-medium text-foreground">No content forms yet</p>
-                  <p className="mt-1 text-[12px] text-muted-foreground">
-                    Create a form to collect content from your client — business info, copy, assets, anything you need.
-                  </p>
-                </div>
+      <InfiniteCanvas
+        overlay={
+          /* Top-center toggle */
+          <div className="pointer-events-auto absolute left-1/2 top-4 z-[55] -translate-x-1/2">
+            <div className="flex items-center gap-1 rounded-sm border border-border bg-card p-1 shadow-sm">
+              {(['assets', 'requests'] as const).map((v) => (
                 <button
+                  key={v}
                   type="button"
-                  onClick={() => setAddFormOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3.5 py-2 text-[12px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                  onClick={() => setSubView(v)}
+                  className={`rounded-sm px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                    subView === v
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
                 >
-                  <Plus className="size-4" />
-                  New form request
+                  {v === 'assets' ? 'Assets' : 'Requests'}
                 </button>
-              </div>
-            </Frame>
+              ))}
+            </div>
+          </div>
+        }
+      >
+        <div className="flex gap-8 p-24">
+          {subView === 'assets' ? (
+            <AssetsFrame projectId={projectId} />
+          ) : (
+            <>
+              {/* Content form frames */}
+              {forms.map((form) => (
+                <ContentFormFrame key={form.id} form={form} projectId={projectId} />
+              ))}
+
+              {/* Ghost "+" frame to create new request */}
+              <button
+                type="button"
+                onClick={() => setAddFormOpen(true)}
+                className="flex w-[480px] flex-col items-center justify-center gap-3 rounded-sm border-2 border-dashed border-border bg-card/50 py-16 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+              >
+                <Plus className="size-6" />
+                <span className="text-[13px] font-medium">New content request</span>
+              </button>
+            </>
           )}
         </div>
       </InfiniteCanvas>

@@ -427,7 +427,8 @@ function SectionRender({
   const pad = 'px-8 py-10'
 
   switch (section.type) {
-    case 'Navbar':
+    case 'Navbar': {
+      const links = e.navLinks ?? (e.list.on ? e.list.items : [])
       return (
         <nav
           className="flex items-center justify-between gap-4 px-8 py-4"
@@ -439,13 +440,23 @@ function SectionRender({
               Brand
             </span>
           </div>
-          {e.list.on && (
+          {links.length > 0 && (
             <div className="hidden items-center gap-5 sm:flex">
-              {e.list.items.map((item, i) => (
+              {links.map((item, i) => (
                 <Editable
                   key={i}
                   value={item}
-                  onCommit={(v) => setListItem(i, v)}
+                  onCommit={(v) => {
+                    if (e.navLinks) {
+                      onUpdate((s) => {
+                        const nl = [...(s.elements.navLinks ?? [])]
+                        nl[i] = v
+                        return { ...s, elements: { ...s.elements, navLinks: nl } }
+                      })
+                    } else {
+                      setListItem(i, v)
+                    }
+                  }}
                   className="text-[13px]"
                   style={{ color: theme.text, opacity: 0.8 }}
                 />
@@ -455,6 +466,7 @@ function SectionRender({
           {Buttons}
         </nav>
       )
+    }
 
     case 'Hero':
       return (
@@ -468,27 +480,7 @@ function SectionRender({
         </header>
       )
 
-    case 'LogoRow':
-      return (
-        <section className={`flex flex-col items-center gap-5 ${pad}`}>
-          {Heading && <div className="text-center">{Heading}</div>}
-          <div className="flex w-full flex-wrap items-center justify-center gap-x-8 gap-y-4">
-            {section.cards.map((c) => (
-              <div
-                key={c.id}
-                className="flex h-8 min-w-[90px] items-center justify-center px-2"
-                style={{ backgroundColor: theme.text, opacity: 0.08, borderRadius: theme.radius }}
-              >
-                <span className="text-[12px] font-semibold" style={{ color: theme.text }}>
-                  {c.title}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )
-
-    case 'FeatureGrid':
+    case 'Feature':
       return (
         <section className={`flex flex-col gap-7 ${pad}`}>
           <div className="flex flex-col items-center gap-2 text-center">
@@ -535,7 +527,7 @@ function SectionRender({
         </section>
       )
 
-    case 'FeatureMedia':
+    case 'TextMedia':
       return (
         <section className={`grid items-center gap-8 sm:grid-cols-2 ${pad}`}>
           <div className="flex flex-col gap-3">
@@ -549,7 +541,7 @@ function SectionRender({
         </section>
       )
 
-    case 'Testimonials':
+    case 'Testimonial':
       return (
         <section className={`flex flex-col gap-7 ${pad}`}>
           <div className="flex flex-col items-center gap-2 text-center">
@@ -654,7 +646,7 @@ function SectionRender({
         </section>
       )
 
-    case 'CTABand':
+    case 'CTA':
       return (
         <section
           className={`flex flex-col items-center gap-4 text-center ${pad}`}
@@ -705,29 +697,46 @@ function SectionRender({
     case 'Footer':
       return (
         <footer
-          className="grid gap-6 px-8 py-8 sm:grid-cols-2"
+          className="flex flex-col gap-6 px-8 py-8"
           style={{ borderTop: `1px solid ${theme.text}14` }}
         >
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <div className="size-5 rounded-sm" style={{ backgroundColor: theme.primary }} />
-              <span className="text-[13px] font-bold" style={{ color: theme.text }}>
-                Brand
-              </span>
+          <div className="grid gap-6 sm:grid-cols-[1fr_repeat(auto-fit,minmax(0,1fr))]" style={{ gridTemplateColumns: `1fr ${section.cards.map(() => '1fr').join(' ')}` }}>
+            <div className="flex flex-col gap-2">
+              {e.image?.on && (
+                <div className="flex items-center gap-2">
+                  <div className="size-5 rounded-sm" style={{ backgroundColor: theme.primary }} />
+                  <span className="text-[13px] font-bold" style={{ color: theme.text }}>Brand</span>
+                </div>
+              )}
+              {Body}
             </div>
-            {Body}
-          </div>
-          {e.list.on && (
-            <div className="flex flex-wrap gap-x-6 gap-y-2 sm:justify-end">
-              {e.list.items.map((item, i) => (
+            {section.cards.map((col) => (
+              <div key={col.id} className="flex flex-col gap-2">
                 <Editable
-                  key={i}
-                  value={item}
-                  onCommit={(v) => setListItem(i, v)}
-                  className="text-[13px]"
-                  style={{ color: theme.text, opacity: 0.8 }}
+                  value={col.title}
+                  onCommit={(v) => setCard(col.id, { title: v })}
+                  className="text-[12px] font-semibold uppercase tracking-wide"
+                  style={{ color: theme.text, opacity: 0.6 }}
                 />
-              ))}
+                {col.text.split('\n').map((link, i) => (
+                  <span key={i} className="text-[13px]" style={{ color: theme.text, opacity: 0.8 }}>
+                    {link}
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+          {e.legalBar?.on && (
+            <div className="border-t pt-4" style={{ borderColor: `${theme.text}14` }}>
+              <Editable
+                value={e.legalBar.text}
+                onCommit={(v) => onUpdate((s) => ({
+                  ...s,
+                  elements: { ...s.elements, legalBar: { on: true, text: v } },
+                }))}
+                className="text-[11px]"
+                style={{ color: theme.text, opacity: 0.5 }}
+              />
             </div>
           )}
         </footer>

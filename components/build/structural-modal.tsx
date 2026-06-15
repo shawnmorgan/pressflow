@@ -192,173 +192,174 @@ export function StructuralModal({ section, onClose, onUpdate }: Props) {
             />
           ) : (
             <div className="flex flex-col gap-5">
-              {/* Heading level */}
-              <div className="flex items-center justify-between rounded-sm border border-border bg-background px-3 py-2.5">
-                <div>
-                  <div className="text-[12px] font-medium text-foreground">
-                    Heading level
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {section.type === 'Hero' ? 'Hero heading' : 'Section heading'}{' '}
-                    {'\u2192'} H{lvl}
-                    {section.headingLevelOverride === null
-                      ? ` (auto, derived H${derivedHeadingLevel(section.type)})`
-                      : ' (overridden)'}
-                  </div>
-                </div>
-                <select
-                  value={section.headingLevelOverride ?? 'auto'}
-                  onChange={(ev) => setHeadingOverride(ev.target.value)}
-                  className="rounded-sm border border-input bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-primary"
-                >
-                  <option value="auto">Auto</option>
-                  <option value="1">H1</option>
-                  <option value="2">H2</option>
-                  <option value="3">H3</option>
-                  <option value="4">H4</option>
-                </select>
-              </div>
-
-              {/* Elements */}
-              <Group title="Elements">
-                <ToggleField
-                  label="Eyebrow"
-                  on={e.eyebrow.on}
-                  onToggle={() => setEl('eyebrow', { on: !e.eyebrow.on })}
-                  value={e.eyebrow.text}
-                  onChange={(v) => setEl('eyebrow', { text: v })}
-                  placeholder="Small label above the heading"
-                />
-                <ToggleField
-                  label={`Heading (H${lvl})`}
-                  on={e.heading.on}
-                  onToggle={() => setEl('heading', { on: !e.heading.on })}
-                  value={e.heading.text}
-                  onChange={(v) => setEl('heading', { text: v })}
-                  placeholder="Main heading"
-                />
-                <ToggleField
-                  label="Subheading"
-                  on={e.subheading.on}
-                  onToggle={() => setEl('subheading', { on: !e.subheading.on })}
-                  value={e.subheading.text}
-                  onChange={(v) => setEl('subheading', { text: v })}
-                  placeholder="Supporting subheading"
-                />
-                <ToggleField
-                  label="Body"
-                  on={e.body.on}
-                  onToggle={() => setEl('body', { on: !e.body.on })}
-                  value={e.body.text}
-                  onChange={(v) => setEl('body', { text: v })}
-                  placeholder="Body copy"
-                  multiline
-                />
-
-                {/* Buttons */}
-                <div className="rounded-sm border border-border">
-                  <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
-                    <span className="text-[12px] font-medium text-foreground">
-                      Buttons / CTAs
-                    </span>
-                    <button
-                      type="button"
-                      onClick={addButton}
-                      className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:border-foreground/30"
-                    >
-                      <Plus className="size-3" />
-                      Add
-                    </button>
-                  </div>
-                  <div className="flex flex-col gap-2 p-3">
-                    {e.buttons.length === 0 && (
-                      <p className="text-[11px] italic text-muted-foreground">
-                        No buttons.
-                      </p>
-                    )}
-                    {e.buttons.map((b) => (
-                      <div key={b.id} className="flex items-center gap-2">
-                        <input
-                          value={b.text}
-                          onChange={(ev) => setButton(b.id, ev.target.value)}
-                          className="min-w-0 flex-1 rounded-sm border border-input bg-background px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-primary"
-                          placeholder="Button label"
-                        />
-                        <button
-                          type="button"
-                          aria-label="Remove button"
-                          onClick={() => removeButton(b.id)}
-                          className="flex size-7 items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-[#d63638]"
-                        >
-                          <Trash className="size-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Simple media toggles */}
-                <div className="flex flex-wrap gap-2">
-                  <CheckChip
-                    label="Image"
-                    on={e.image.on}
-                    onToggle={() => toggleSimple('image')}
-                  />
-                  <CheckChip
-                    label="Icon"
-                    on={e.icon.on}
-                    onToggle={() => toggleSimple('icon')}
-                  />
-                  <CheckChip
-                    label="List"
-                    on={e.list.on}
-                    onToggle={() => setListOn(!e.list.on)}
-                  />
-                </div>
-
-                {/* List items */}
-                {e.list.on && (
-                  <div className="rounded-sm border border-border">
-                    <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
-                      <span className="text-[12px] font-medium text-foreground">
-                        List items
-                      </span>
-                      <button
-                        type="button"
-                        onClick={addListItem}
-                        className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:border-foreground/30"
-                      >
-                        <Plus className="size-3" />
-                        Add
-                      </button>
+              {/* Heading level — shown for all types except Navbar */}
+              {section.type !== 'Navbar' && (
+                <div className="flex items-center justify-between rounded-sm border border-border bg-background px-3 py-2.5">
+                  <div>
+                    <div className="text-[12px] font-medium text-foreground">
+                      Heading level
                     </div>
-                    <div className="flex flex-col gap-2 p-3">
-                      {e.list.items.map((item, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <input
-                            value={item}
-                            onChange={(ev) => setListItem(i, ev.target.value)}
-                            className="min-w-0 flex-1 rounded-sm border border-input bg-background px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-primary"
-                          />
-                          <button
-                            type="button"
-                            aria-label="Remove item"
-                            onClick={() => removeListItem(i)}
-                            className="flex size-7 items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-[#d63638]"
-                          >
-                            <Trash className="size-3.5" />
-                          </button>
-                        </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {section.type === 'Hero' ? 'Hero heading' : 'Section heading'}{' '}
+                      {'\u2192'} H{lvl}
+                      {section.headingLevelOverride === null
+                        ? ` (auto, derived H${derivedHeadingLevel(section.type)})`
+                        : ' (overridden)'}
+                    </div>
+                  </div>
+                  <select
+                    value={section.headingLevelOverride ?? 'auto'}
+                    onChange={(ev) => setHeadingOverride(ev.target.value)}
+                    className="rounded-sm border border-input bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-primary"
+                  >
+                    <option value="auto">Auto</option>
+                    <option value="1">H1</option>
+                    <option value="2">H2</option>
+                    <option value="3">H3</option>
+                    <option value="4">H4</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Per-type slot editors */}
+              {section.type === 'Navbar' && (
+                <Group title="Navbar slots">
+                  <CheckChip label="Logo" on={e.image.on} onToggle={() => toggleSimple('image')} />
+                  <NavLinksEditor
+                    links={e.navLinks ?? (e.list.on ? e.list.items : [])}
+                    onChange={(links) => onUpdate((s) => ({
+                      ...s,
+                      elements: { ...s.elements, navLinks: links },
+                    }))}
+                  />
+                  <ButtonsEditor buttons={e.buttons} onAdd={addButton} onChange={setButton} onRemove={removeButton} />
+                </Group>
+              )}
+
+              {section.type === 'Hero' && (
+                <Group title="Hero slots">
+                  <ToggleField label="Eyebrow" on={e.eyebrow.on} onToggle={() => setEl('eyebrow', { on: !e.eyebrow.on })} value={e.eyebrow.text} onChange={(v) => setEl('eyebrow', { text: v })} placeholder="Small label above the heading" />
+                  <ToggleField label={`Heading (H${lvl})`} on={e.heading.on} onToggle={() => setEl('heading', { on: !e.heading.on })} value={e.heading.text} onChange={(v) => setEl('heading', { text: v })} placeholder="Main heading" />
+                  <ToggleField label="Subheading" on={e.subheading.on} onToggle={() => setEl('subheading', { on: !e.subheading.on })} value={e.subheading.text} onChange={(v) => setEl('subheading', { text: v })} placeholder="Supporting subheading" />
+                  <ToggleField label="Body" on={e.body.on} onToggle={() => setEl('body', { on: !e.body.on })} value={e.body.text} onChange={(v) => setEl('body', { text: v })} placeholder="Body copy" multiline />
+                  <ButtonsEditor buttons={e.buttons} onAdd={addButton} onChange={setButton} onRemove={removeButton} />
+                  <CheckChip label="Media" on={e.image.on} onToggle={() => toggleSimple('image')} />
+                </Group>
+              )}
+
+              {section.type === 'TextMedia' && (
+                <Group title="Text + Media slots">
+                  <ToggleField label="Eyebrow" on={e.eyebrow.on} onToggle={() => setEl('eyebrow', { on: !e.eyebrow.on })} value={e.eyebrow.text} onChange={(v) => setEl('eyebrow', { text: v })} placeholder="Small label" />
+                  <ToggleField label={`Heading (H${lvl})`} on={e.heading.on} onToggle={() => setEl('heading', { on: !e.heading.on })} value={e.heading.text} onChange={(v) => setEl('heading', { text: v })} placeholder="Section heading" />
+                  <ToggleField label="Body" on={e.body.on} onToggle={() => setEl('body', { on: !e.body.on })} value={e.body.text} onChange={(v) => setEl('body', { text: v })} placeholder="Body copy" multiline />
+                  <CheckChip label="Media" on={e.image.on} onToggle={() => toggleSimple('image')} />
+                  <div className="flex items-center justify-between rounded-sm border border-border px-3 py-2">
+                    <span className="text-[12px] font-medium text-foreground">Layout</span>
+                    <div className="inline-flex rounded-sm border border-border bg-card p-0.5">
+                      {(['left', 'right'] as const).map((dir) => (
+                        <button
+                          key={dir}
+                          type="button"
+                          onClick={() => onUpdate((s) => ({ ...s, elements: { ...s.elements, layout: dir } }))}
+                          className={`rounded-sm px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                            (e.layout ?? 'right') === dir
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          Media {dir}
+                        </button>
                       ))}
                     </div>
                   </div>
-                )}
-              </Group>
+                  <CheckChip label="List" on={e.list.on} onToggle={() => setListOn(!e.list.on)} />
+                  {e.list.on && <ListEditor items={e.list.items} onChange={setListItem} onAdd={addListItem} onRemove={removeListItem} />}
+                  <ButtonsEditor buttons={e.buttons} onAdd={addButton} onChange={setButton} onRemove={removeButton} />
+                </Group>
+              )}
 
-              {/* Cards */}
-              {meta.hasCards && (
+              {section.type === 'CTA' && (
+                <Group title="CTA slots">
+                  <ToggleField label={`Heading (H${lvl})`} on={e.heading.on} onToggle={() => setEl('heading', { on: !e.heading.on })} value={e.heading.text} onChange={(v) => setEl('heading', { text: v })} placeholder="CTA heading" />
+                  <ToggleField label="Body" on={e.body.on} onToggle={() => setEl('body', { on: !e.body.on })} value={e.body.text} onChange={(v) => setEl('body', { text: v })} placeholder="Supporting text" multiline />
+                  <ButtonsEditor buttons={e.buttons} onAdd={addButton} onChange={setButton} onRemove={removeButton} />
+                </Group>
+              )}
+
+              {section.type === 'Footer' && (
+                <Group title="Footer slots">
+                  <CheckChip label="Logo" on={e.image.on} onToggle={() => toggleSimple('image')} />
+                  <CheckChip
+                    label="Social icons"
+                    on={e.social?.on ?? false}
+                    onToggle={() => onUpdate((s) => ({
+                      ...s,
+                      elements: { ...s.elements, social: { on: !(s.elements.social?.on ?? false) } },
+                    }))}
+                  />
+                  <ToggleField
+                    label="Legal bar"
+                    on={e.legalBar?.on ?? false}
+                    onToggle={() => onUpdate((s) => ({
+                      ...s,
+                      elements: { ...s.elements, legalBar: { on: !(s.elements.legalBar?.on ?? false), text: s.elements.legalBar?.text ?? '' } },
+                    }))}
+                    value={e.legalBar?.text ?? ''}
+                    onChange={(v) => onUpdate((s) => ({
+                      ...s,
+                      elements: { ...s.elements, legalBar: { on: true, text: v } },
+                    }))}
+                    placeholder="Copyright / legal text"
+                  />
+                </Group>
+              )}
+
+              {/* Card-based sections: Feature, Testimonial, Pricing, FAQ, Footer */}
+              {(section.type === 'Feature' || section.type === 'Testimonial' || section.type === 'Pricing' || section.type === 'FAQ') && (
+                <>
+                  <Group title="Section header">
+                    {(section.type === 'Feature') && (
+                      <ToggleField label="Eyebrow" on={e.eyebrow.on} onToggle={() => setEl('eyebrow', { on: !e.eyebrow.on })} value={e.eyebrow.text} onChange={(v) => setEl('eyebrow', { text: v })} placeholder="Small label" />
+                    )}
+                    <ToggleField label={`Heading (H${lvl})`} on={e.heading.on} onToggle={() => setEl('heading', { on: !e.heading.on })} value={e.heading.text} onChange={(v) => setEl('heading', { text: v })} placeholder="Section heading" />
+                    {(section.type === 'Feature' || section.type === 'Testimonial' || section.type === 'Pricing') && (
+                      <ToggleField label="Subheading" on={e.subheading.on} onToggle={() => setEl('subheading', { on: !e.subheading.on })} value={e.subheading.text} onChange={(v) => setEl('subheading', { text: v })} placeholder="Supporting subheading" />
+                    )}
+                  </Group>
+                  <Group
+                    title={`${meta.cardLabel}s`}
+                    action={
+                      <button
+                        type="button"
+                        onClick={addCard}
+                        className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:border-foreground/30"
+                      >
+                        <Plus className="size-3" />
+                        Add {meta.cardLabel.toLowerCase()}
+                      </button>
+                    }
+                  >
+                    <div className="flex flex-col gap-2">
+                      {section.cards.map((c, i) => (
+                        <CardRow
+                          key={c.id}
+                          card={c}
+                          index={i}
+                          total={section.cards.length}
+                          onChange={(patch) => setCard(c.id, patch)}
+                          onRemove={() => removeCard(c.id)}
+                          onMove={(dir) => moveCard(i, i + dir)}
+                        />
+                      ))}
+                    </div>
+                  </Group>
+                </>
+              )}
+
+              {/* Footer columns */}
+              {section.type === 'Footer' && meta.hasCards && (
                 <Group
-                  title={`${meta.cardLabel} cards`}
+                  title="Footer columns"
                   action={
                     <button
                       type="button"
@@ -366,7 +367,7 @@ export function StructuralModal({ section, onClose, onUpdate }: Props) {
                       className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:border-foreground/30"
                     >
                       <Plus className="size-3" />
-                      Add {meta.cardLabel.toLowerCase()}
+                      Add column
                     </button>
                   }
                 >
@@ -399,6 +400,145 @@ export function StructuralModal({ section, onClose, onUpdate }: Props) {
             Done
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function NavLinksEditor({ links, onChange }: { links: string[]; onChange: (links: string[]) => void }) {
+  return (
+    <div className="rounded-sm border border-border">
+      <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
+        <span className="text-[12px] font-medium text-foreground">Navigation links</span>
+        <button
+          type="button"
+          onClick={() => onChange([...links, 'Link'])}
+          className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:border-foreground/30"
+        >
+          <Plus className="size-3" />
+          Add
+        </button>
+      </div>
+      <div className="flex flex-col gap-2 p-3">
+        {links.length === 0 && <p className="text-[11px] italic text-muted-foreground">No links.</p>}
+        {links.map((link, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              value={link}
+              onChange={(ev) => {
+                const next = [...links]
+                next[i] = ev.target.value
+                onChange(next)
+              }}
+              className="min-w-0 flex-1 rounded-sm border border-input bg-background px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-primary"
+              placeholder="Link label"
+            />
+            <button
+              type="button"
+              aria-label="Remove link"
+              onClick={() => onChange(links.filter((_, idx) => idx !== i))}
+              className="flex size-7 items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-[#d63638]"
+            >
+              <Trash className="size-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ButtonsEditor({
+  buttons,
+  onAdd,
+  onChange,
+  onRemove,
+}: {
+  buttons: ButtonEl[]
+  onAdd: () => void
+  onChange: (id: string, text: string) => void
+  onRemove: (id: string) => void
+}) {
+  return (
+    <div className="rounded-sm border border-border">
+      <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
+        <span className="text-[12px] font-medium text-foreground">Buttons / CTAs</span>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:border-foreground/30"
+        >
+          <Plus className="size-3" />
+          Add
+        </button>
+      </div>
+      <div className="flex flex-col gap-2 p-3">
+        {buttons.length === 0 && <p className="text-[11px] italic text-muted-foreground">No buttons.</p>}
+        {buttons.map((b) => (
+          <div key={b.id} className="flex items-center gap-2">
+            <input
+              value={b.text}
+              onChange={(ev) => onChange(b.id, ev.target.value)}
+              className="min-w-0 flex-1 rounded-sm border border-input bg-background px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-primary"
+              placeholder="Button label"
+            />
+            <button
+              type="button"
+              aria-label="Remove button"
+              onClick={() => onRemove(b.id)}
+              className="flex size-7 items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-[#d63638]"
+            >
+              <Trash className="size-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ListEditor({
+  items,
+  onChange,
+  onAdd,
+  onRemove,
+}: {
+  items: string[]
+  onChange: (i: number, v: string) => void
+  onAdd: () => void
+  onRemove: (i: number) => void
+}) {
+  return (
+    <div className="rounded-sm border border-border">
+      <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
+        <span className="text-[12px] font-medium text-foreground">List items</span>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:border-foreground/30"
+        >
+          <Plus className="size-3" />
+          Add
+        </button>
+      </div>
+      <div className="flex flex-col gap-2 p-3">
+        {items.map((item, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              value={item}
+              onChange={(ev) => onChange(i, ev.target.value)}
+              className="min-w-0 flex-1 rounded-sm border border-input bg-background px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-primary"
+            />
+            <button
+              type="button"
+              aria-label="Remove item"
+              onClick={() => onRemove(i)}
+              className="flex size-7 items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-[#d63638]"
+            >
+              <Trash className="size-3.5" />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   )
