@@ -8,8 +8,9 @@ export function useUndoRedo<T>(initial: T) {
   const redoStack = useRef<T[]>([])
 
   const setState = useCallback(
-    (next: T) => {
+    (nextOrFn: T | ((prev: T) => T)) => {
       setStateRaw((prev) => {
+        const next = typeof nextOrFn === 'function' ? (nextOrFn as (prev: T) => T)(prev) : nextOrFn
         undoStack.current.push(prev)
         if (undoStack.current.length > MAX_STACK) undoStack.current.shift()
         redoStack.current = []

@@ -210,11 +210,23 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
     <>
       <Frame title="Assets" width={420}>
         <div
-          className={`flex flex-col gap-0 ${dragOver ? 'ring-2 ring-inset ring-primary/40' : ''}`}
+          className="relative flex flex-col gap-0"
           onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
         >
+          {/* Drag-over overlay */}
+          {dragOver && (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm border-2 border-dashed border-primary bg-primary/10">
+              <div className="flex flex-col items-center gap-2">
+                <Upload className="size-8 text-primary" />
+                <span className="text-[13px] font-semibold text-primary">
+                  Drop files to upload
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Hidden file inputs */}
           <input
             ref={fileInputRef}

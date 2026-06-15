@@ -8,8 +8,6 @@ import { StyleView } from '@/components/style/style-view'
 import { ContentView } from '@/components/content/content-view'
 import { BuildView } from '@/components/build/build-view'
 import { MockupView } from '@/components/mockup/mockup-view'
-import { ClientView } from '@/components/client/client-view'
-import { ShareModal } from '@/components/share/share-modal'
 import { CommentsPane } from '@/components/comments/comments-pane'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import {
@@ -53,7 +51,6 @@ export function Workspace({ projectId }: { projectId: string }) {
 function WorkspaceInner({ projectId }: { projectId: string }) {
   const { showToast } = useToast()
   const [view, setView] = useState<CanvasView>('Project')
-  const [shareOpen, setShareOpen] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -206,7 +203,6 @@ function WorkspaceInner({ projectId }: { projectId: string }) {
       <Topbar
         view={view}
         onViewChange={setView}
-        onShare={() => setShareOpen(true)}
         onComments={() => setCommentsOpen((v) => !v)}
         commentsActive={commentsOpen}
         canUndo={canUndo}
@@ -225,10 +221,8 @@ function WorkspaceInner({ projectId }: { projectId: string }) {
           <BuildView pages={pages} setPages={setPagesUndo} ds={ds} subView="wireframe" />
         )}
         {view === 'Mockup' && <MockupView />}
-        {view === 'Client View' && <ClientView projectId={projectId} />}
       </div>
 
-      {shareOpen && <ShareModal onClose={() => setShareOpen(false)} projectId={projectId} />}
       {commentsOpen && <CommentsPane onClose={() => setCommentsOpen(false)} projectId={projectId} />}
     </div>
   )

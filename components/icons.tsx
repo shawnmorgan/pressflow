@@ -552,3 +552,43 @@ export function FileText(props: IconProps) {
     </svg>
   )
 }
+
+export function Mail(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <rect width="20" height="16" x="2" y="4" rx="2" />
+      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+    </svg>
+  )
+}
+
+export function Hash(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <line x1="4" x2="20" y1="9" y2="9" />
+      <line x1="4" x2="20" y1="15" y2="15" />
+      <line x1="10" x2="8" y1="3" y2="21" />
+      <line x1="16" x2="14" y1="3" y2="21" />
+    </svg>
+  )
+}
+
+export function Globe(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+      <path d="M2 12h20" />
+    </svg>
+  )
+}
+
+export function Key(props: IconProps) {
+  return (
+    <svg {...base(props)} aria-hidden="true">
+      <path d="m15.5 7.5 2.3-2.3a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4L19.5 9.5" />
+      <path d="m21 2-9.6 9.6" />
+      <circle cx="7.5" cy="15.5" r="5.5" />
+    </svg>
+  )
+}

@@ -3,14 +3,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { InfiniteCanvas } from '@/components/canvas/infinite-canvas'
 import { Frame } from '@/components/canvas/frame'
-import { ONBOARDING_GROUPS } from '@/components/portal/portal-onboarding'
 import {
   Calendar,
   Check,
+  Copy,
   ExternalLink,
+  Globe,
+  Link,
   LinkIcon,
   Pencil,
   Plus,
+  Server,
+  Share,
   Trash,
   X,
 } from '@/components/icons'
@@ -39,10 +43,27 @@ const TARGETS = [
 
 type RelevantLink = { id: string; label: string; url: string }
 
+type ShareKey = 'style' | 'content' | 'sitemap' | 'wireframe' | 'mockups'
+
+const SHARE_OPTIONS: { key: ShareKey; label: string; hint: string }[] = [
+  { key: 'style', label: 'Style guide', hint: 'Colors, type, components' },
+  { key: 'content', label: 'Content', hint: 'Content collection forms' },
+  { key: 'sitemap', label: 'Sitemap', hint: 'Page & section structure' },
+  { key: 'wireframe', label: 'Wireframe', hint: 'Styled page previews' },
+  { key: 'mockups', label: 'Mockups', hint: 'Design mockups' },
+]
+
+function getShareUrl(token: string) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${origin}/portal/${token}`
+}
+
+type WpConnection = { id: string; label: string; url: string } | null
+
 /**
- * Project view — the agency-side project overview placed on the canvas as two
- * frames: "Project Details" (identity, stage, target, calendar, links) and
- * "Onboarding" (the discovery questionnaire).
+ * Project view — the agency-side project overview placed on the canvas as
+ * frames: "Project Details", "WordPress", "Portal Home Content", and
+ * "Client Portal".
  */
 export function ProjectView({ projectId }: { projectId: string }) {
   const [projectName, setProjectName] = useState('')
@@ -57,30 +78,96 @@ export function ProjectView({ projectId }: { projectId: string }) {
   const [draftUrl, setDraftUrl] = useState('')
   const [adding, setAdding] = useState(false)
 
-  const [onboarding, setOnboarding] = useState<Record<string, string>>({})
+  // Portal home content
+  const [portalContent, setPortalContent] = useState('')
+
+  // WordPress connection (project-level)
+  const [wpConn, setWpConn] = useState<WpConnection>(null)
+  const [wpUrl, setWpUrl] = useState('')
+  const [wpSaving, setWpSaving] = useState(false)
+
+  // Client portal share
+  const [shareToken, setShareToken] = useState<string | null>(null)
+  const [shareId, setShareId] = useState<string | null>(null)
+  const [shareViews, setShareViews] = useState<Record<ShareKey, boolean>>({
+    style: true,
+    content: false,
+    sitemap: true,
+    wireframe: false,
+    mockups: false,
+  })
+  const [allowComments, setAllowComments] = useState(true)
+  const [linkCopied, setLinkCopied] = useState(false)
+
   const [loading, setLoading] = useState(true)
 
   // Load project from DB
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    supabase
-      .from('projects')
-      .select('name, client_name, stage, target, calendar_link, relevant_links')
-      .eq('id', projectId)
-      .single()
-      .then(({ data }) => {
-        if (cancelled) return
-        if (data) {
-          setProjectName(data.name ?? '')
-          setClientName(data.client_name ?? '')
-          setStage((data.stage as Stage) ?? 'onboarding')
-          setTarget(data.target ?? 'ollie')
-          setCalendarLink(data.calendar_link ?? '')
-          setLinks((data.relevant_links as RelevantLink[]) ?? [])
-        }
-        setLoading(false)
-      })
+
+    async function load() {
+      const [projectRes, wpRes, shareRes] = await Promise.all([
+        supabase
+          .from('projects')
+          .select('name, client_name, stage, target, calendar_link, relevant_links, portal_content, account_id')
+          .eq('id', projectId)
+          .single(),
+        supabase
+          .from('connections')
+          .select('id, label, config')
+          .eq('kind', 'wordpress-project')
+          .eq('config->>project_id', projectId)
+          .maybeSingle(),
+        supabase
+          .from('shares')
+          .select('id, token, visible_views, can_comment')
+          .eq('project_id', projectId)
+          .eq('revoked', false)
+          .limit(1)
+          .maybeSingle(),
+      ])
+
+      if (cancelled) return
+
+      if (projectRes.data) {
+        const d = projectRes.data
+        setProjectName(d.name ?? '')
+        setClientName(d.client_name ?? '')
+        setStage((d.stage as Stage) ?? 'onboarding')
+        setTarget(d.target ?? 'ollie')
+        setCalendarLink(d.calendar_link ?? '')
+        setLinks((d.relevant_links as RelevantLink[]) ?? [])
+        setPortalContent((d.portal_content as string) ?? '')
+      }
+
+      if (wpRes.data) {
+        const cfg = wpRes.data.config as Record<string, string> | null
+        setWpConn({
+          id: wpRes.data.id,
+          label: wpRes.data.label ?? '',
+          url: cfg?.url ?? '',
+        })
+      }
+
+      if (shareRes.data) {
+        setShareToken(shareRes.data.token)
+        setShareId(shareRes.data.id)
+        const views = (shareRes.data.visible_views as string[]) ?? []
+        setShareViews({
+          style: views.includes('style'),
+          content: views.includes('content'),
+          sitemap: views.includes('sitemap'),
+          wireframe: views.includes('wireframe'),
+          mockups: views.includes('mockups'),
+        })
+        setAllowComments(shareRes.data.can_comment ?? true)
+      }
+
+      setLoading(false)
+    }
+
+    load()
     return () => { cancelled = true }
   }, [projectId])
 
@@ -100,26 +187,12 @@ export function ProjectView({ projectId }: { projectId: string }) {
     [projectId],
   )
 
-  const handleProjectName = (v: string) => {
-    setProjectName(v)
-    save({ name: v })
-  }
-  const handleClientName = (v: string) => {
-    setClientName(v)
-    save({ client_name: v })
-  }
-  const handleStage = (s: Stage) => {
-    setStage(s)
-    save({ stage: s })
-  }
-  const handleTarget = (t: string) => {
-    setTarget(t)
-    save({ target: t })
-  }
-  const handleCalendarLink = (v: string) => {
-    setCalendarLink(v)
-    save({ calendar_link: v })
-  }
+  const handleProjectName = (v: string) => { setProjectName(v); save({ name: v }) }
+  const handleClientName = (v: string) => { setClientName(v); save({ client_name: v }) }
+  const handleStage = (s: Stage) => { setStage(s); save({ stage: s }) }
+  const handleTarget = (t: string) => { setTarget(t); save({ target: t }) }
+  const handleCalendarLink = (v: string) => { setCalendarLink(v); save({ calendar_link: v }) }
+  const handlePortalContent = (v: string) => { setPortalContent(v); save({ portal_content: v }) }
 
   const saveLinks = useCallback(
     (newLinks: RelevantLink[]) => {
@@ -131,48 +204,98 @@ export function ProjectView({ projectId }: { projectId: string }) {
 
   const stageIndex = STAGES.indexOf(stage)
 
-  const startAdd = () => {
-    setAdding(true)
-    setEditingId(null)
-    setDraftLabel('')
-    setDraftUrl('')
-  }
-
-  const startEdit = (link: RelevantLink) => {
-    setEditingId(link.id)
-    setAdding(false)
-    setDraftLabel(link.label)
-    setDraftUrl(link.url)
-  }
-
-  const cancelDraft = () => {
-    setAdding(false)
-    setEditingId(null)
-    setDraftLabel('')
-    setDraftUrl('')
-  }
+  const startAdd = () => { setAdding(true); setEditingId(null); setDraftLabel(''); setDraftUrl('') }
+  const startEdit = (link: RelevantLink) => { setEditingId(link.id); setAdding(false); setDraftLabel(link.label); setDraftUrl(link.url) }
+  const cancelDraft = () => { setAdding(false); setEditingId(null); setDraftLabel(''); setDraftUrl('') }
 
   const saveDraft = () => {
     const label = draftLabel.trim()
     const url = draftUrl.trim()
     if (!label || !url) return
     if (adding) {
-      const newLinks = [...links, { id: `l${Date.now()}`, label, url }]
-      saveLinks(newLinks)
+      saveLinks([...links, { id: `l${Date.now()}`, label, url }])
     } else if (editingId) {
-      const newLinks = links.map((l) =>
-        l.id === editingId ? { ...l, label, url } : l,
-      )
-      saveLinks(newLinks)
+      saveLinks(links.map((l) => l.id === editingId ? { ...l, label, url } : l))
     }
     cancelDraft()
   }
 
   const removeLink = (id: string) => {
-    const newLinks = links.filter((l) => l.id !== id)
-    saveLinks(newLinks)
+    saveLinks(links.filter((l) => l.id !== id))
     if (editingId === id) cancelDraft()
   }
+
+  // WordPress connect/disconnect
+  const connectWp = async () => {
+    if (!wpUrl.trim()) return
+    setWpSaving(true)
+    const label = wpUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+    const { data } = await supabase
+      .from('connections')
+      .insert({
+        account_id: (await supabase.from('projects').select('account_id').eq('id', projectId).single()).data?.account_id,
+        kind: 'wordpress-project',
+        label,
+        config: { url: wpUrl.trim(), project_id: projectId },
+      })
+      .select('id')
+      .single()
+    if (data) setWpConn({ id: data.id, label, url: wpUrl.trim() })
+    setWpSaving(false)
+    setWpUrl('')
+  }
+
+  const disconnectWp = async () => {
+    if (!wpConn) return
+    await supabase.from('connections').delete().eq('id', wpConn.id)
+    setWpConn(null)
+  }
+
+  // Share helpers
+  const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveShareOptions = useCallback(
+    (views: Record<ShareKey, boolean>, canComment: boolean) => {
+      if (!shareId) return
+      if (shareTimerRef.current) clearTimeout(shareTimerRef.current)
+      shareTimerRef.current = setTimeout(() => {
+        const visible = Object.entries(views).filter(([, v]) => v).map(([k]) => k)
+        supabase.from('shares').update({ visible_views: visible, can_comment: canComment }).eq('id', shareId).then()
+      }, 800)
+    },
+    [shareId],
+  )
+
+  const toggleShareView = (key: ShareKey) => {
+    const next = { ...shareViews, [key]: !shareViews[key] }
+    setShareViews(next)
+    saveShareOptions(next, allowComments)
+  }
+
+  const toggleComments = () => {
+    const next = !allowComments
+    setAllowComments(next)
+    saveShareOptions(shareViews, next)
+  }
+
+  const copyPortalLink = async () => {
+    let token = shareToken
+    if (!token) {
+      token = crypto.randomUUID()
+      const visible = Object.entries(shareViews).filter(([, v]) => v).map(([k]) => k)
+      const { data } = await supabase
+        .from('shares')
+        .insert({ project_id: projectId, token, visible_views: visible, can_comment: allowComments })
+        .select('id')
+        .single()
+      if (data) { setShareToken(token); setShareId(data.id) }
+    }
+    if (!token) return
+    try { await navigator.clipboard.writeText(getShareUrl(token)) } catch { /* noop */ }
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 1800)
+  }
+
+  const displayUrl = shareToken ? getShareUrl(shareToken) : getShareUrl('...')
 
   if (loading) {
     return (
@@ -184,7 +307,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
 
   return (
     <InfiniteCanvas>
-      <div className="flex items-start gap-10 p-24 pl-72">
+      <div className="flex flex-wrap items-start gap-10 p-24 pl-72">
         {/* Frame 1 — Project Details */}
         <div className="shrink-0">
           <Frame title="Project Details" width={520}>
@@ -237,8 +360,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
                   })}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  The current stage is shown to the client so they can track
-                  progress.
+                  The current stage is shown to the client so they can track progress.
                 </p>
               </div>
 
@@ -267,17 +389,11 @@ export function ProjectView({ projectId }: { projectId: string }) {
                               : 'border-border bg-card'
                           }`}
                         >
-                          {selected && (
-                            <span className="size-1.5 rounded-full bg-current" />
-                          )}
+                          {selected && <span className="size-1.5 rounded-full bg-current" />}
                         </span>
                         <span className="min-w-0">
-                          <span className="block text-[13px] font-medium text-foreground">
-                            {t.label}
-                          </span>
-                          <span className="block text-[11px] text-muted-foreground">
-                            {t.detail}
-                          </span>
+                          <span className="block text-[13px] font-medium text-foreground">{t.label}</span>
+                          <span className="block text-[11px] text-muted-foreground">{t.detail}</span>
                         </span>
                       </button>
                     )
@@ -407,69 +523,195 @@ export function ProjectView({ projectId }: { projectId: string }) {
           </Frame>
         </div>
 
-        {/* Frame 2 — Onboarding */}
+        {/* Frame 2 — WordPress */}
         <div className="shrink-0">
-          <Frame title="Onboarding" width={520}>
-            <div className="flex flex-col gap-5 p-5">
+          <Frame title="WordPress" width={420}>
+            <div className="flex flex-col gap-4 p-5">
               <p className="text-[12px] leading-relaxed text-muted-foreground">
-                Discovery details collected from the client before design begins.
+                Connect a WordPress site for this project. Auth is handed off
+                securely — PressFlow never stores raw site credentials.
               </p>
-              {ONBOARDING_GROUPS.map((group) => (
-                <div
-                  key={group.title}
-                  className="flex flex-col gap-3 border-t border-border pt-5 first:border-t-0 first:pt-0"
-                >
-                  <h3 className="text-[13px] font-semibold text-foreground">
-                    {group.title}
-                  </h3>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {group.fields.map((field) => (
-                      <label
-                        key={field.key}
-                        className={`flex flex-col gap-1.5 ${field.kind === 'long' ? 'sm:col-span-2' : ''}`}
+
+              {wpConn ? (
+                <div className="flex items-center gap-3 rounded-sm border border-border bg-card p-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-border bg-muted text-muted-foreground">
+                    <Server className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-[13px] font-semibold text-foreground">
+                        {wpConn.label || wpConn.url || 'WordPress site'}
+                      </span>
+                      <StatusDot connected />
+                    </div>
+                    {wpConn.url && (
+                      <span className="text-[11px] text-muted-foreground">{wpConn.url}</span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {wpConn.url && (
+                      <a
+                        href={`${wpConn.url.replace(/\/$/, '')}/wp-admin`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
                       >
-                        <FieldLabel>{field.label}</FieldLabel>
-                        {field.kind === 'long' ? (
-                          <textarea
-                            value={onboarding[field.key] ?? ''}
-                            onChange={(e) =>
-                              setOnboarding((prev) => ({
-                                ...prev,
-                                [field.key]: e.target.value,
-                              }))
-                            }
-                            placeholder={field.placeholder}
-                            rows={3}
-                            className="w-full resize-y rounded-sm border border-input bg-background px-2.5 py-2 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
-                          />
-                        ) : (
-                          <input
-                            value={onboarding[field.key] ?? ''}
-                            onChange={(e) =>
-                              setOnboarding((prev) => ({
-                                ...prev,
-                                [field.key]: e.target.value,
-                              }))
-                            }
-                            placeholder={field.placeholder}
-                            className="w-full rounded-sm border border-input bg-background px-2.5 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
-                          />
-                        )}
-                        {field.hint && (
-                          <span className="text-[11px] text-muted-foreground">
-                            {field.hint}
-                          </span>
-                        )}
-                      </label>
-                    ))}
+                        Admin
+                        <ExternalLink className="size-3.5" />
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={disconnectWp}
+                      className="rounded-sm border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30"
+                    >
+                      Disconnect
+                    </button>
                   </div>
                 </div>
-              ))}
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={wpUrl}
+                    onChange={(e) => setWpUrl(e.target.value)}
+                    placeholder="https://yoursite.com"
+                    className="w-full rounded-sm border border-input bg-background px-2.5 py-2 text-[12px] text-foreground outline-none focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={connectWp}
+                    disabled={wpSaving || !wpUrl.trim()}
+                    className="shrink-0 rounded-sm bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {wpSaving ? 'Saving...' : 'Authorize'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </Frame>
+        </div>
+
+        {/* Frame 3 — Portal Home Content */}
+        <div className="shrink-0">
+          <Frame title="Portal Home Content" width={420}>
+            <div className="flex flex-col gap-3 p-5">
+              <p className="text-[12px] leading-relaxed text-muted-foreground">
+                Write a message your client will see on their portal home page.
+                This is a great place for welcome text, project context, or
+                next-step instructions.
+              </p>
+              <textarea
+                value={portalContent}
+                onChange={(e) => handlePortalContent(e.target.value)}
+                rows={8}
+                placeholder="Welcome to your project portal! Here you can review progress, upload assets, and provide feedback..."
+                className="w-full resize-y rounded-sm border border-input bg-background px-3 py-2.5 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Shown on the Overview tab of the client portal.
+              </p>
+            </div>
+          </Frame>
+        </div>
+
+        {/* Frame 4 — Client Portal */}
+        <div className="shrink-0">
+          <Frame title="Client Portal" width={420}>
+            <div className="flex flex-col gap-5 p-5">
+              {/* Share link */}
+              <div className="flex flex-col gap-1.5">
+                <FieldLabel>Portal link</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 rounded-sm border border-border bg-background px-2.5 py-2">
+                    <Link className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate text-[12px] text-foreground">{displayUrl}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={copyPortalLink}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    {linkCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    {linkCopied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                {shareToken && (
+                  <a
+                    href={getShareUrl(shareToken)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-medium text-primary hover:underline"
+                  >
+                    <ExternalLink className="size-3.5" />
+                    View client portal
+                  </a>
+                )}
+              </div>
+
+              {/* What to share */}
+              <div className="flex flex-col gap-2 border-t border-border pt-5">
+                <FieldLabel>Visible views</FieldLabel>
+                <div className="flex flex-col gap-1.5">
+                  {SHARE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => toggleShareView(opt.key)}
+                      className="flex items-center gap-3 rounded-sm border border-border bg-background px-3 py-2 text-left transition-colors hover:border-foreground/30"
+                    >
+                      <ShareCheckBox checked={shareViews[opt.key]} />
+                      <span className="flex flex-col">
+                        <span className="text-[12px] font-medium text-foreground">{opt.label}</span>
+                        <span className="text-[11px] text-muted-foreground">{opt.hint}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Comments toggle */}
+              <button
+                type="button"
+                onClick={toggleComments}
+                className="flex items-center gap-3 rounded-sm border border-border bg-background px-3 py-2 text-left transition-colors hover:border-foreground/30"
+              >
+                <ShareCheckBox checked={allowComments} />
+                <span className="flex flex-col">
+                  <span className="text-[12px] font-medium text-foreground">Allow comments</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {allowComments ? 'Viewers can leave comments' : 'Viewers can view only'}
+                  </span>
+                </span>
+              </button>
             </div>
           </Frame>
         </div>
       </div>
     </InfiniteCanvas>
+  )
+}
+
+function StatusDot({ connected }: { connected: boolean }) {
+  return (
+    <span
+      className={`size-2 rounded-full ${connected ? 'bg-[#00a32a]' : 'bg-muted-foreground/60'}`}
+    />
+  )
+}
+
+function ShareCheckBox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex size-4 shrink-0 items-center justify-center rounded-[2px] border transition-colors ${
+        checked
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-card text-transparent'
+      }`}
+    >
+      <Check className="size-3" />
+    </span>
   )
 }
 

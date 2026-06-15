@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Share, MessageSquare, Bell, Undo, Redo } from '@/components/icons'
+import { MessageSquare, Bell, Undo, Redo } from '@/components/icons'
 import { ProjectSwitcher } from '@/components/project-switcher'
 import { ViewTabs, type CanvasView } from '@/components/canvas/view-tabs'
 import { AccountMenu } from '@/components/account-menu'
@@ -9,7 +9,6 @@ import { AccountMenu } from '@/components/account-menu'
 export function Topbar({
   view,
   onViewChange,
-  onShare,
   onComments,
   commentsActive,
   canUndo,
@@ -19,7 +18,6 @@ export function Topbar({
 }: {
   view: CanvasView
   onViewChange: (v: CanvasView) => void
-  onShare?: () => void
   onComments?: () => void
   commentsActive?: boolean
   canUndo?: boolean
@@ -102,18 +100,7 @@ export function Topbar({
 
         <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
 
-        {/* Share + Comments */}
-        {onShare && (
-          <button
-            type="button"
-            onClick={onShare}
-            aria-label="Share"
-            title="Share"
-            className="flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <Share className="size-4" />
-          </button>
-        )}
+        {/* Comments */}
         {onComments && (
           <button
             type="button"

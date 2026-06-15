@@ -17,7 +17,7 @@ import { WireframeView } from '@/components/build/wireframe-view'
 import { StructuralModal } from '@/components/build/structural-modal'
 import { ImportPanel } from '@/components/build/import-panel'
 import { PageExportModal } from '@/components/build/page-export-modal'
-import { Layers, Upload } from '@/components/icons'
+import { Layers, Upload, Sparkles } from '@/components/icons'
 
 type SubView = 'sitemap' | 'wireframe'
 
@@ -170,64 +170,23 @@ export function BuildView({ pages, setPages, ds, subView }: Props) {
 
   const importSections = (sections: Section[], mode: 'append' | 'replace') => {
     const target = pages.find((p) => p.id === activePageId)
-    if (!target) return
+    if (!target) {
+      // No pages exist — create a new page with the imported sections
+      const id = `pg-${Math.random().toString(36).slice(2, 8)}`
+      setPages(() => [
+        { id, name: 'Home', slug: '/', parentId: null, sections },
+      ])
+      setActivePageId(id)
+      setImportOpen(false)
+      setSelectedSectionId(null)
+      return
+    }
     updatePage(target.id, (p) => ({
       ...p,
       sections: mode === 'replace' ? sections : [...p.sections, ...sections],
     }))
     setImportOpen(false)
     setSelectedSectionId(null)
-  }
-
-  /* ---------- Empty state ---------- */
-
-  if (!pages.length) {
-    return (
-      <div className="flex h-full items-center justify-center p-6">
-        <div className="flex max-w-md flex-col items-center text-center">
-          <span className="flex size-12 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground">
-            <Layers className="size-5" />
-          </span>
-          <h2 className="mt-4 text-[15px] font-semibold text-foreground">
-            No pages yet
-          </h2>
-          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-            Add a new page to start building your sitemap, or import sections
-            from an HTML file.
-          </p>
-          <div className="mt-4 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => addPage(null)}
-              className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Add new page
-            </button>
-            <button
-              type="button"
-              onClick={() => setImportOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-2 text-[13px] font-medium text-foreground transition-colors hover:border-foreground/30"
-            >
-              <Upload className="size-3.5" />
-              Import
-            </button>
-          </div>
-        </div>
-        {importOpen && (
-          <ImportPanel
-            onClose={() => setImportOpen(false)}
-            onImport={(sections) => {
-              const id = `pg-${Math.random().toString(36).slice(2, 8)}`
-              setPages(() => [
-                { id, name: 'Home', slug: '/', parentId: null, sections },
-              ])
-              setActivePageId(id)
-              setImportOpen(false)
-            }}
-          />
-        )}
-      </div>
-    )
   }
 
   return (
@@ -237,15 +196,28 @@ export function BuildView({ pages, setPages, ds, subView }: Props) {
           <>
             {/* Contextual controls — left vertical stack */}
             <div className="pointer-events-auto absolute bottom-16 left-4 top-4 flex w-60 flex-col gap-2">
-              {/* Import — contextual to the sitemap/wireframe views */}
+              {/* Import HTML */}
               <button
                 type="button"
                 onClick={() => setImportOpen(true)}
-                aria-label="Import"
-                title="Import"
+                aria-label="Import HTML"
+                title="Import HTML"
                 className="flex size-9 shrink-0 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
               >
                 <Upload className="size-4" />
+              </button>
+
+              {/* AI generate (stub) */}
+              <button
+                type="button"
+                onClick={() => {
+                  /* TODO: wire up AI sitemap generation */
+                }}
+                aria-label="Generate with AI"
+                title="Generate with AI"
+                className="flex size-9 shrink-0 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
+              >
+                <Sparkles className="size-4" />
               </button>
 
               {/* Pages navigator — collapsed by default */}

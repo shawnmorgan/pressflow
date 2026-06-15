@@ -65,6 +65,7 @@ export function PortalAssets({ token }: { token: string }) {
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const [detailAsset, setDetailAsset] = useState<Asset | null>(null)
   const [pendingSlot, setPendingSlot] = useState<BrandingSlot | null>(null)
   const brandingInputRef = useRef<HTMLInputElement>(null)
@@ -132,7 +133,28 @@ export function PortalAssets({ token }: { token: string }) {
         }}
       />
 
-      <div className="flex flex-col gap-8">
+      <div
+        className="relative flex flex-col gap-8"
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragOver(false)
+          if (e.dataTransfer.files.length) uploadFiles(Array.from(e.dataTransfer.files))
+        }}
+      >
+        {/* Drag-over indicator */}
+        {dragOver && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm border-2 border-dashed border-primary bg-primary/10">
+            <div className="flex flex-col items-center gap-2">
+              <Upload className="size-8 text-primary" />
+              <span className="text-[13px] font-semibold text-primary">
+                Drop files to upload
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Intro */}
         <div>
           <h2 className="text-[18px] font-semibold text-foreground">Assets</h2>
