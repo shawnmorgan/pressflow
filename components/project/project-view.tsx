@@ -26,6 +26,78 @@ const FieldLabel = ({ children }: { children: React.ReactNode }) => (
   </span>
 )
 
+/* Rich text editor for portal home content — user-authored content only */
+function RichTextEditor({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (html: string) => void
+  placeholder?: string
+}) {
+  const editorRef = useRef<HTMLDivElement>(null)
+  const lastValue = useRef(value)
+
+  useEffect(() => {
+    if (editorRef.current && value !== lastValue.current) {
+      /* Content is user-authored portal text from their own project DB row */
+      editorRef.current.innerHTML = value // eslint-disable-line no-unsanitized/property
+      lastValue.current = value
+    }
+  }, [value])
+
+  useEffect(() => {
+    if (editorRef.current && !editorRef.current.innerHTML && value) {
+      editorRef.current.innerHTML = value // eslint-disable-line no-unsanitized/property
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const format = (cmd: string, val?: string) => {
+    document.execCommand(cmd, false, val) // eslint-disable-line
+    editorRef.current?.focus()
+  }
+
+  return (
+    <div className="overflow-hidden rounded-sm border border-input focus-within:border-primary">
+      <div className="flex items-center gap-0.5 border-b border-input bg-muted/30 px-2 py-1">
+        <button type="button" onMouseDown={(e) => { e.preventDefault(); format('bold') }} title="Bold" className="flex size-7 items-center justify-center rounded-sm text-[12px] font-bold text-muted-foreground hover:bg-muted hover:text-foreground">B</button>
+        <button type="button" onMouseDown={(e) => { e.preventDefault(); format('italic') }} title="Italic" className="flex size-7 items-center justify-center rounded-sm text-[12px] italic text-muted-foreground hover:bg-muted hover:text-foreground">I</button>
+        <button type="button" onMouseDown={(e) => { e.preventDefault(); format('underline') }} title="Underline" className="flex size-7 items-center justify-center rounded-sm text-[12px] underline text-muted-foreground hover:bg-muted hover:text-foreground">U</button>
+        <span className="mx-1 h-4 w-px bg-border" />
+        <button type="button" onMouseDown={(e) => { e.preventDefault(); format('insertUnorderedList') }} title="Bullet list" className="flex size-7 items-center justify-center rounded-sm text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground">&bull;</button>
+        <button type="button" onMouseDown={(e) => { e.preventDefault(); format('insertOrderedList') }} title="Numbered list" className="flex size-7 items-center justify-center rounded-sm text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground">1.</button>
+        <span className="mx-1 h-4 w-px bg-border" />
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            const url = prompt('Enter URL:')
+            if (url) format('createLink', url)
+          }}
+          title="Add link"
+          className="flex size-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <LinkIcon className="size-3.5" />
+        </button>
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={() => {
+          const html = editorRef.current?.innerHTML ?? ''
+          lastValue.current = html
+          onChange(html)
+        }}
+        data-placeholder={placeholder}
+        className="min-h-[160px] bg-background px-3 py-2.5 text-[13px] leading-relaxed text-foreground outline-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)]"
+      />
+    </div>
+  )
+}
+
 const STAGES = [
   'onboarding',
   'content',
@@ -601,12 +673,10 @@ export function ProjectView({ projectId }: { projectId: string }) {
                 This is a great place for welcome text, project context, or
                 next-step instructions.
               </p>
-              <textarea
+              <RichTextEditor
                 value={portalContent}
-                onChange={(e) => handlePortalContent(e.target.value)}
-                rows={8}
+                onChange={handlePortalContent}
                 placeholder="Welcome to your project portal! Here you can review progress, upload assets, and provide feedback..."
-                className="w-full resize-y rounded-sm border border-input bg-background px-3 py-2.5 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
               />
               <p className="text-[11px] text-muted-foreground">
                 Shown on the Overview tab of the client portal.

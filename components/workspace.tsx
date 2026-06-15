@@ -54,7 +54,6 @@ export function Workspace({ projectId }: { projectId: string }) {
 function WorkspaceInner({ projectId }: { projectId: string }) {
   const { showToast } = useToast()
   const [view, setView] = useState<CanvasView>('Project')
-  const [commentsOpen, setCommentsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const {
@@ -206,8 +205,10 @@ function WorkspaceInner({ projectId }: { projectId: string }) {
       <Topbar
         view={view}
         onViewChange={setView}
-        onComments={() => setCommentsOpen((v) => !v)}
-        commentsActive={commentsOpen}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
       <div className="relative min-h-0 flex-1">
         {view === 'Project' && <ProjectView projectId={projectId} />}
@@ -217,9 +218,8 @@ function WorkspaceInner({ projectId }: { projectId: string }) {
           <BuildView pages={pages} setPages={setPagesUndo} ds={ds} />
         )}
         {view === 'Mockups' && <MockupView />}
+        {view === 'Comments' && <CommentsPane onClose={() => setView('Project')} projectId={projectId} />}
       </div>
-
-      {commentsOpen && <CommentsPane onClose={() => setCommentsOpen(false)} projectId={projectId} />}
     </div>
   )
 }

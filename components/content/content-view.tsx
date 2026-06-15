@@ -87,7 +87,7 @@ export function ContentView({ projectId }: { projectId?: string }) {
               <button
                 type="button"
                 onClick={() => setAddFormOpen(true)}
-                className="flex w-[480px] flex-col items-center justify-center gap-3 rounded-sm border-2 border-dashed border-border bg-card/50 py-16 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                className="flex h-[200px] w-[480px] shrink-0 self-start flex-col items-center justify-center gap-3 rounded-sm border-2 border-dashed border-border bg-card/50 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
               >
                 <Plus className="size-6" />
                 <span className="text-[13px] font-medium">New content request</span>

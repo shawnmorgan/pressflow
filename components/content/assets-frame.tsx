@@ -67,20 +67,14 @@ function categoryFromFile(file: File): AssetCategory {
 }
 
 /* ------------------------------------------------------------------ */
-/* Main component                                                      */
+/* Shared hook — all 4 frames share one data layer                    */
 /* ------------------------------------------------------------------ */
 
-export function AssetsFrame({ projectId }: { projectId?: string }) {
+function useAssets(projectId?: string) {
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
-  const [detailAsset, setDetailAsset] = useState<Asset | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const brandingInputRef = useRef<HTMLInputElement>(null)
-  const [pendingSlot, setPendingSlot] = useState<BrandingSlot | null>(null)
 
-  // Load all assets + signed URLs
   const loadAssets = useCallback(async () => {
     if (!projectId) return
     const { data } = await supabase
@@ -91,25 +85,13 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
 
     if (!data) { setLoading(false); return }
 
-    // Signed URLs for images and branding (both are viewable)
-    const viewable = data.filter((a: any) => a.kind === 'image' || a.category === 'branding')
+    const viewable = data.filter((a: any) => a.kind === 'image' || a.category === 'branding' || a.category === 'video')
     const paths = viewable.map((a: any) => a.original_path)
     let urlMap = new Map<string, string>()
     if (paths.length > 0) {
       const { data: signed } = await supabase.storage
         .from('assets')
         .createSignedUrls(paths, 3600)
-      signed?.forEach((s: any) => {
-        if (s.signedUrl) urlMap.set(s.path!, s.signedUrl)
-      })
-    }
-
-    // Also get signed URLs for video thumbnails
-    const videoPaths = data.filter((a: any) => a.category === 'video').map((a: any) => a.original_path)
-    if (videoPaths.length > 0) {
-      const { data: signed } = await supabase.storage
-        .from('assets')
-        .createSignedUrls(videoPaths, 3600)
       signed?.forEach((s: any) => {
         if (s.signedUrl) urlMap.set(s.path!, s.signedUrl)
       })
@@ -126,7 +108,6 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
 
   useEffect(() => { loadAssets() }, [loadAssets])
 
-  // Listen for uploads from the icon-stack button
   useEffect(() => {
     const handler = (e: Event) => {
       const files = (e as CustomEvent).detail as FileList
@@ -175,7 +156,6 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
     await supabase.storage.from('assets').remove([asset.original_path])
     await supabase.from('assets').delete().eq('id', asset.id)
     setAssets((prev) => prev.filter((a) => a.id !== asset.id))
-    if (detailAsset?.id === asset.id) setDetailAsset(null)
   }
 
   const downloadAsset = async (asset: Asset) => {
@@ -187,18 +167,17 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
     window.open(asset.signedUrl, '_blank')
   }
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    if (e.dataTransfer.files.length) uploadFiles(Array.from(e.dataTransfer.files))
-  }
+  return { assets, loading, uploading, uploadFiles, removeAsset, downloadAsset }
+}
 
-  const handleBrandingUpload = (slot: BrandingSlot) => {
-    setPendingSlot(slot)
-    brandingInputRef.current?.click()
-  }
+/* ------------------------------------------------------------------ */
+/* Main component — renders 4 separate frames                         */
+/* ------------------------------------------------------------------ */
 
-  // Split assets into sections
+export function AssetsFrame({ projectId }: { projectId?: string }) {
+  const { assets, loading, uploading, uploadFiles, removeAsset, downloadAsset } = useAssets(projectId)
+  const [detailAsset, setDetailAsset] = useState<Asset | null>(null)
+
   const branding = assets.filter((a) => a.category === 'branding')
   const images = assets.filter((a) => a.category === 'image')
   const videos = assets.filter((a) => a.category === 'video')
@@ -208,276 +187,40 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
 
   return (
     <>
-      <Frame title="Assets" width={420}>
-        <div
-          className="relative flex flex-col gap-0"
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-        >
-          {/* Drag-over overlay */}
-          {dragOver && (
-            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm border-2 border-dashed border-primary bg-primary/10">
-              <div className="flex flex-col items-center gap-2">
-                <Upload className="size-8 text-primary" />
-                <span className="text-[13px] font-semibold text-primary">
-                  Drop files to upload
-                </span>
-              </div>
-            </div>
-          )}
+      {/* ── Branding Frame ── */}
+      <BrandingFrame
+        loading={loading}
+        uploading={uploading}
+        slots={BRANDING_SLOTS}
+        getSlotAsset={getSlotAsset}
+        uploadFiles={uploadFiles}
+        removeAsset={removeAsset}
+        onPreview={setDetailAsset}
+      />
 
-          {/* Hidden file inputs */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,video/*,application/pdf,.doc,.docx,.zip,.txt,.csv,.xls,.xlsx"
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files?.length) uploadFiles(Array.from(e.target.files))
-              e.target.value = ''
-            }}
-          />
-          <input
-            ref={brandingInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files?.length && pendingSlot) {
-                // Replace existing slot asset
-                const existing = getSlotAsset(pendingSlot)
-                if (existing) removeAsset(existing)
-                uploadFiles(Array.from(e.target.files), 'branding', pendingSlot)
-              }
-              e.target.value = ''
-              setPendingSlot(null)
-            }}
-          />
+      {/* ── Images Frame ── */}
+      <ImagesFrame
+        loading={loading}
+        images={images}
+        uploadFiles={uploadFiles}
+        onPreview={setDetailAsset}
+      />
 
-          {loading ? (
-            <p className="py-8 text-center text-[12px] text-muted-foreground">Loading assets...</p>
-          ) : (
-            <>
-              {/* ── Branding ── */}
-              <AssetSection icon={Palette} title="Branding">
-                <div className="flex flex-col gap-2">
-                  {BRANDING_SLOTS.map(({ slot, label, hint }) => {
-                    const asset = getSlotAsset(slot)
-                    return (
-                      <div
-                        key={slot}
-                        className="group flex items-center gap-3 rounded-sm border border-border bg-background p-2"
-                      >
-                        {asset?.signedUrl ? (
-                          <button
-                            type="button"
-                            onClick={() => setDetailAsset(asset)}
-                            className="flex size-12 shrink-0 items-center justify-center rounded-sm border border-border bg-white"
-                          >
-                            <img
-                              src={asset.signedUrl}
-                              alt={label}
-                              className="max-h-full max-w-full object-contain p-1"
-                            />
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleBrandingUpload(slot)}
-                            className="flex size-12 shrink-0 items-center justify-center rounded-sm border border-dashed border-border bg-muted/30 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-                          >
-                            <Plus className="size-4" />
-                          </button>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[12px] font-medium text-foreground">{label}</p>
-                          <p className="text-[11px] text-muted-foreground">{hint}</p>
-                        </div>
-                        {asset && (
-                          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                            <button
-                              type="button"
-                              onClick={() => handleBrandingUpload(slot)}
-                              title="Replace"
-                              className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-                            >
-                              <Upload className="size-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeAsset(asset)}
-                              title="Remove"
-                              className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:text-[#d63638]"
-                            >
-                              <Trash className="size-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </AssetSection>
+      {/* ── Videos Frame ── */}
+      <VideosFrame
+        loading={loading}
+        videos={videos}
+        uploadFiles={uploadFiles}
+        onPreview={setDetailAsset}
+      />
 
-              {/* ── Images ── */}
-              <AssetSection
-                icon={ImageIcon}
-                title="Images"
-                count={images.length}
-                onAdd={() => {
-                  const input = document.createElement('input')
-                  input.type = 'file'
-                  input.multiple = true
-                  input.accept = 'image/*'
-                  input.onchange = () => {
-                    if (input.files?.length) uploadFiles(Array.from(input.files), 'image')
-                  }
-                  input.click()
-                }}
-              >
-                {images.length === 0 ? (
-                  <p className="py-3 text-center text-[11px] text-muted-foreground">
-                    No images uploaded yet
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {images.map((asset) => (
-                      <button
-                        key={asset.id}
-                        type="button"
-                        onClick={() => setDetailAsset(asset)}
-                        className="group relative aspect-square overflow-hidden rounded-sm border border-border bg-muted transition-shadow hover:shadow-md"
-                      >
-                        {asset.signedUrl ? (
-                          <img
-                            src={asset.signedUrl}
-                            alt={asset.label ?? ''}
-                            className="size-full object-cover"
-                          />
-                        ) : (
-                          <span className="flex size-full items-center justify-center">
-                            <ImageIcon className="size-5 text-muted-foreground" />
-                          </span>
-                        )}
-                        <span className="absolute inset-0 flex items-center justify-center bg-foreground/0 transition-colors group-hover:bg-foreground/20">
-                          <Eye className="size-5 text-white opacity-0 drop-shadow-sm transition-opacity group-hover:opacity-100" />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </AssetSection>
-
-              {/* ── Videos ── */}
-              <AssetSection
-                icon={Film}
-                title="Videos"
-                count={videos.length}
-                onAdd={() => {
-                  const input = document.createElement('input')
-                  input.type = 'file'
-                  input.multiple = true
-                  input.accept = 'video/*'
-                  input.onchange = () => {
-                    if (input.files?.length) uploadFiles(Array.from(input.files), 'video')
-                  }
-                  input.click()
-                }}
-              >
-                {videos.length === 0 ? (
-                  <p className="py-3 text-center text-[11px] text-muted-foreground">
-                    No videos uploaded yet
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {videos.map((asset) => (
-                      <button
-                        key={asset.id}
-                        type="button"
-                        onClick={() => setDetailAsset(asset)}
-                        className="group relative aspect-video overflow-hidden rounded-sm border border-border bg-muted transition-shadow hover:shadow-md"
-                      >
-                        <span className="flex size-full items-center justify-center">
-                          <Film className="size-5 text-muted-foreground" />
-                        </span>
-                        <span className="absolute bottom-1 left-1 truncate rounded-sm bg-foreground/60 px-1.5 py-0.5 text-[9px] font-medium text-white">
-                          {asset.label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </AssetSection>
-
-              {/* ── Files ── */}
-              <AssetSection
-                icon={FileText}
-                title="Files"
-                count={files.length}
-                onAdd={() => {
-                  const input = document.createElement('input')
-                  input.type = 'file'
-                  input.multiple = true
-                  input.accept = 'application/pdf,.doc,.docx,.zip,.txt,.csv,.xls,.xlsx'
-                  input.onchange = () => {
-                    if (input.files?.length) uploadFiles(Array.from(input.files), 'file')
-                  }
-                  input.click()
-                }}
-              >
-                {files.length === 0 ? (
-                  <p className="py-3 text-center text-[11px] text-muted-foreground">
-                    No files uploaded yet
-                  </p>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {files.map((asset) => (
-                      <button
-                        key={asset.id}
-                        type="button"
-                        onClick={() => setDetailAsset(asset)}
-                        className="group flex items-center gap-3 rounded-sm border border-border bg-background p-2 text-left transition-colors hover:border-foreground/20"
-                      >
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-sm border border-border bg-muted">
-                          <FileText className="size-4 text-muted-foreground" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[12px] font-medium text-foreground">
-                            {asset.label ?? 'Untitled'}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {formatExt(asset.mime)}{formatSize(asset.bytes) ? ` · ${formatSize(asset.bytes)}` : ''}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </AssetSection>
-
-              {/* General upload drop zone */}
-              <div className="border-t border-border p-4">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading || !projectId}
-                  className="flex w-full flex-col items-center gap-1.5 rounded-sm border border-dashed border-border bg-background px-3 py-4 text-center transition-colors hover:border-foreground/30 disabled:opacity-50"
-                >
-                  <Upload className="size-4 text-muted-foreground" />
-                  <span className="text-[12px] font-medium text-foreground">
-                    {uploading ? 'Uploading...' : 'Upload files'}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    or drag & drop anywhere on this frame
-                  </span>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </Frame>
+      {/* ── Files Frame ── */}
+      <FilesFrame
+        loading={loading}
+        files={files}
+        uploadFiles={uploadFiles}
+        onPreview={setDetailAsset}
+      />
 
       {/* Asset detail modal */}
       {detailAsset && (
@@ -485,7 +228,7 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
           asset={detailAsset}
           onClose={() => setDetailAsset(null)}
           onDownload={() => downloadAsset(detailAsset)}
-          onDelete={() => removeAsset(detailAsset)}
+          onDelete={() => { removeAsset(detailAsset); setDetailAsset(null) }}
         />
       )}
     </>
@@ -493,49 +236,360 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Section wrapper                                                     */
+/* Branding Frame                                                      */
 /* ------------------------------------------------------------------ */
 
-function AssetSection({
-  icon: Icon,
-  title,
-  count,
-  onAdd,
-  children,
+function BrandingFrame({
+  loading,
+  uploading,
+  slots,
+  getSlotAsset,
+  uploadFiles,
+  removeAsset,
+  onPreview,
 }: {
-  icon: typeof ImageIcon
-  title: string
-  count?: number
-  onAdd?: () => void
-  children: React.ReactNode
+  loading: boolean
+  uploading: boolean
+  slots: typeof BRANDING_SLOTS
+  getSlotAsset: (slot: BrandingSlot) => Asset | undefined
+  uploadFiles: (files: File[], category?: AssetCategory, slot?: string) => Promise<void>
+  removeAsset: (asset: Asset) => Promise<void>
+  onPreview: (asset: Asset) => void
 }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [pendingSlot, setPendingSlot] = useState<BrandingSlot | null>(null)
+
+  const handleUpload = (slot: BrandingSlot) => {
+    setPendingSlot(slot)
+    inputRef.current?.click()
+  }
+
   return (
-    <div className="border-b border-border">
-      <div className="flex items-center justify-between px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <Icon className="size-3.5 text-muted-foreground" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {title}
-          </span>
-          {count !== undefined && count > 0 && (
-            <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          )}
-        </div>
-        {onAdd && (
-          <button
-            type="button"
-            onClick={onAdd}
-            title={`Add ${title.toLowerCase()}`}
-            className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <Plus className="size-3.5" />
-          </button>
+    <Frame title="Branding" frameId="assets-branding" width={380}>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.length && pendingSlot) {
+            const existing = getSlotAsset(pendingSlot)
+            if (existing) removeAsset(existing)
+            uploadFiles(Array.from(e.target.files), 'branding', pendingSlot)
+          }
+          e.target.value = ''
+          setPendingSlot(null)
+        }}
+      />
+      <div className="flex flex-col gap-2 p-4">
+        {loading ? (
+          <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
+        ) : (
+          slots.map(({ slot, label, hint }) => {
+            const asset = getSlotAsset(slot)
+            return (
+              <div
+                key={slot}
+                className="group flex items-center gap-3 rounded-sm border border-border bg-background p-2"
+              >
+                {asset?.signedUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => onPreview(asset)}
+                    className="flex size-12 shrink-0 items-center justify-center rounded-sm border border-border bg-white"
+                  >
+                    <img
+                      src={asset.signedUrl}
+                      alt={label}
+                      className="max-h-full max-w-full object-contain p-1"
+                    />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleUpload(slot)}
+                    className="flex size-12 shrink-0 items-center justify-center rounded-sm border border-dashed border-border bg-muted/30 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                  >
+                    <Plus className="size-4" />
+                  </button>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] font-medium text-foreground">{label}</p>
+                  <p className="text-[11px] text-muted-foreground">{hint}</p>
+                </div>
+                {asset && (
+                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => handleUpload(slot)}
+                      title="Replace"
+                      className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Upload className="size-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeAsset(asset)}
+                      title="Remove"
+                      className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:text-[#d63638]"
+                    >
+                      <Trash className="size-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })
         )}
       </div>
-      <div className="px-4 pb-4">{children}</div>
-    </div>
+    </Frame>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Images Frame                                                        */
+/* ------------------------------------------------------------------ */
+
+function ImagesFrame({
+  loading,
+  images,
+  uploadFiles,
+  onPreview,
+}: {
+  loading: boolean
+  images: Asset[]
+  uploadFiles: (files: File[], category?: AssetCategory) => Promise<void>
+  onPreview: (asset: Asset) => void
+}) {
+  const addImages = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.accept = 'image/*'
+    input.onchange = () => {
+      if (input.files?.length) uploadFiles(Array.from(input.files), 'image')
+    }
+    input.click()
+  }
+
+  return (
+    <Frame
+      title="Images"
+      frameId="assets-images"
+      width={380}
+      headerRight={
+        <button
+          type="button"
+          onClick={addImages}
+          title="Add images"
+          className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Plus className="size-3.5" />
+        </button>
+      }
+    >
+      <div className="p-4">
+        {loading ? (
+          <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
+        ) : images.length === 0 ? (
+          <button
+            type="button"
+            onClick={addImages}
+            className="flex w-full flex-col items-center gap-1.5 rounded-sm border border-dashed border-border bg-background px-3 py-6 text-center transition-colors hover:border-foreground/30"
+          >
+            <Upload className="size-4 text-muted-foreground" />
+            <span className="text-[12px] font-medium text-foreground">Upload images</span>
+          </button>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {images.map((asset) => (
+              <button
+                key={asset.id}
+                type="button"
+                onClick={() => onPreview(asset)}
+                className="group relative aspect-square overflow-hidden rounded-sm border border-border bg-muted transition-shadow hover:shadow-md"
+              >
+                {asset.signedUrl ? (
+                  <img
+                    src={asset.signedUrl}
+                    alt={asset.label ?? ''}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <span className="flex size-full items-center justify-center">
+                    <ImageIcon className="size-5 text-muted-foreground" />
+                  </span>
+                )}
+                <span className="absolute inset-0 flex items-center justify-center bg-foreground/0 transition-colors group-hover:bg-foreground/20">
+                  <Eye className="size-5 text-white opacity-0 drop-shadow-sm transition-opacity group-hover:opacity-100" />
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Frame>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Videos Frame                                                        */
+/* ------------------------------------------------------------------ */
+
+function VideosFrame({
+  loading,
+  videos,
+  uploadFiles,
+  onPreview,
+}: {
+  loading: boolean
+  videos: Asset[]
+  uploadFiles: (files: File[], category?: AssetCategory) => Promise<void>
+  onPreview: (asset: Asset) => void
+}) {
+  const addVideos = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.accept = 'video/*'
+    input.onchange = () => {
+      if (input.files?.length) uploadFiles(Array.from(input.files), 'video')
+    }
+    input.click()
+  }
+
+  return (
+    <Frame
+      title="Videos"
+      frameId="assets-videos"
+      width={380}
+      headerRight={
+        <button
+          type="button"
+          onClick={addVideos}
+          title="Add videos"
+          className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Plus className="size-3.5" />
+        </button>
+      }
+    >
+      <div className="p-4">
+        {loading ? (
+          <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
+        ) : videos.length === 0 ? (
+          <button
+            type="button"
+            onClick={addVideos}
+            className="flex w-full flex-col items-center gap-1.5 rounded-sm border border-dashed border-border bg-background px-3 py-6 text-center transition-colors hover:border-foreground/30"
+          >
+            <Upload className="size-4 text-muted-foreground" />
+            <span className="text-[12px] font-medium text-foreground">Upload videos</span>
+          </button>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {videos.map((asset) => (
+              <button
+                key={asset.id}
+                type="button"
+                onClick={() => onPreview(asset)}
+                className="group relative aspect-video overflow-hidden rounded-sm border border-border bg-muted transition-shadow hover:shadow-md"
+              >
+                <span className="flex size-full items-center justify-center">
+                  <Film className="size-5 text-muted-foreground" />
+                </span>
+                <span className="absolute bottom-1 left-1 truncate rounded-sm bg-foreground/60 px-1.5 py-0.5 text-[9px] font-medium text-white">
+                  {asset.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Frame>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Files Frame                                                         */
+/* ------------------------------------------------------------------ */
+
+function FilesFrame({
+  loading,
+  files,
+  uploadFiles,
+  onPreview,
+}: {
+  loading: boolean
+  files: Asset[]
+  uploadFiles: (files: File[], category?: AssetCategory) => Promise<void>
+  onPreview: (asset: Asset) => void
+}) {
+  const addFiles = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.accept = 'application/pdf,.doc,.docx,.zip,.txt,.csv,.xls,.xlsx'
+    input.onchange = () => {
+      if (input.files?.length) uploadFiles(Array.from(input.files), 'file')
+    }
+    input.click()
+  }
+
+  return (
+    <Frame
+      title="Files"
+      frameId="assets-files"
+      width={380}
+      headerRight={
+        <button
+          type="button"
+          onClick={addFiles}
+          title="Add files"
+          className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Plus className="size-3.5" />
+        </button>
+      }
+    >
+      <div className="p-4">
+        {loading ? (
+          <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
+        ) : files.length === 0 ? (
+          <button
+            type="button"
+            onClick={addFiles}
+            className="flex w-full flex-col items-center gap-1.5 rounded-sm border border-dashed border-border bg-background px-3 py-6 text-center transition-colors hover:border-foreground/30"
+          >
+            <Upload className="size-4 text-muted-foreground" />
+            <span className="text-[12px] font-medium text-foreground">Upload files</span>
+          </button>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {files.map((asset) => (
+              <button
+                key={asset.id}
+                type="button"
+                onClick={() => onPreview(asset)}
+                className="group flex items-center gap-3 rounded-sm border border-border bg-background p-2 text-left transition-colors hover:border-foreground/20"
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-sm border border-border bg-muted">
+                  <FileText className="size-4 text-muted-foreground" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12px] font-medium text-foreground">
+                    {asset.label ?? 'Untitled'}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {formatExt(asset.mime)}{formatSize(asset.bytes) ? ` · ${formatSize(asset.bytes)}` : ''}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Frame>
   )
 }
 
@@ -566,7 +620,6 @@ function AssetDetailModal({
         className="flex w-full max-w-lg flex-col overflow-hidden rounded-sm border border-border bg-card shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Preview */}
         {isImage && asset.signedUrl && (
           <div className="flex items-center justify-center border-b border-border bg-muted/30 p-6">
             <img
@@ -591,7 +644,6 @@ function AssetDetailModal({
           </div>
         )}
 
-        {/* Info */}
         <div className="flex flex-col gap-3 p-5">
           <div>
             <h3 className="text-[14px] font-semibold text-foreground">
@@ -610,7 +662,6 @@ function AssetDetailModal({
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex items-center justify-between border-t border-border pt-3">
             <button
               type="button"

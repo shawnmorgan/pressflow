@@ -1,33 +1,26 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { MessageSquare, Bell } from '@/components/icons'
+import { Bell, Undo, Redo } from '@/components/icons'
 import { ProjectSwitcher } from '@/components/project-switcher'
 import { ViewTabs, type CanvasView } from '@/components/canvas/view-tabs'
 import { AccountMenu } from '@/components/account-menu'
 
-function CountBadge({ count }: { count: number }) {
-  if (count <= 0) return null
-  return (
-    <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold leading-none text-primary-foreground">
-      {count > 99 ? '99+' : count}
-    </span>
-  )
-}
-
 export function Topbar({
   view,
   onViewChange,
-  onComments,
-  commentsActive,
-  commentCount = 0,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
   notificationCount = 0,
 }: {
   view: CanvasView
   onViewChange: (v: CanvasView) => void
-  onComments?: () => void
-  commentsActive?: boolean
-  commentCount?: number
+  canUndo?: boolean
+  canRedo?: boolean
+  onUndo?: () => void
+  onRedo?: () => void
   notificationCount?: number
 }) {
   const [bellOpen, setBellOpen] = useState(false)
@@ -49,7 +42,7 @@ export function Topbar({
 
       <span className="h-5 w-px bg-border" aria-hidden="true" />
 
-      {/* Center — main view switcher */}
+      {/* Center — main view switcher (including Comments) */}
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
         <ViewTabs view={view} onChange={onViewChange} />
       </div>
@@ -58,26 +51,31 @@ export function Topbar({
 
       <span className="h-5 w-px bg-border" aria-hidden="true" />
 
-      {/* Right — comments, notifications, account */}
-      <div className="flex shrink-0 items-center gap-2">
-        {/* Comments */}
-        {onComments && (
-          <button
-            type="button"
-            onClick={onComments}
-            aria-label="Comments"
-            title="Comments"
-            aria-pressed={commentsActive || undefined}
-            className={`relative flex size-8 items-center justify-center rounded-sm transition-colors ${
-              commentsActive
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
-          >
-            <MessageSquare className="size-4" />
-            {!commentsActive && <CountBadge count={commentCount} />}
-          </button>
-        )}
+      {/* Right — undo/redo, notifications, account */}
+      <div className="flex shrink-0 items-center gap-1">
+        {/* Undo / Redo */}
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          aria-label="Undo"
+          title="Undo (Cmd+Z)"
+          className="flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+        >
+          <Undo className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onRedo}
+          disabled={!canRedo}
+          aria-label="Redo"
+          title="Redo (Cmd+Shift+Z)"
+          className="flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+        >
+          <Redo className="size-4" />
+        </button>
+
+        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
 
         {/* Notification bell */}
         <div ref={bellRef} className="relative">
@@ -89,7 +87,11 @@ export function Topbar({
             className="relative flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <Bell className="size-4" />
-            <CountBadge count={notificationCount} />
+            {notificationCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold leading-none text-primary-foreground">
+                {notificationCount > 99 ? '99+' : notificationCount}
+              </span>
+            )}
           </button>
           {bellOpen && (
             <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-sm border border-border bg-card p-4 shadow-lg">

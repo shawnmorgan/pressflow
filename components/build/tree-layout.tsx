@@ -13,9 +13,9 @@ export type TreeItem = { id: string; parentId: string | null }
 type Props = {
   items: TreeItem[]
   nodeWidth: number
-  /** Horizontal gap between sibling subtrees. */
+  /** Horizontal gap between a parent's right edge and its children's left edge. */
   hGap?: number
-  /** Vertical gap between a parent's bottom and its children's top. */
+  /** Vertical gap between sibling subtrees. */
   vGap?: number
   /** Estimated node height used before a node is measured. */
   estimatedHeight?: number
@@ -30,16 +30,16 @@ type Props = {
 type Pos = { x: number; y: number }
 
 /**
- * Lays out page frames as a top-down tidy tree: each parent is centered above
- * its children, connected by elbow links. Heights are measured per node so
- * variable-height frames stack correctly. Frames can be dragged onto one
- * another to reparent, or onto the background to become a root.
+ * Lays out page frames as a left-to-right tidy tree: each parent is centered
+ * left of its children, connected by cubic bezier links. Heights are measured
+ * per node so variable-height frames stack correctly. Frames can be dragged
+ * onto one another to reparent, or onto the background to become a root.
  */
 export function TreeLayout({
   items,
   nodeWidth,
-  hGap = 64,
-  vGap = 72,
+  hGap = 96,
+  vGap = 40,
   estimatedHeight = 420,
   renderNode,
   onAddChild,
@@ -73,44 +73,50 @@ export function TreeLayout({
   const childrenOf = (id: string | null) =>
     items.filter((n) => n.parentId === id)
 
-  // ---- Tidy tree layout ----
-  const subtreeWidthCache = new Map<string, number>()
-  const subtreeWidth = (id: string): number => {
-    if (subtreeWidthCache.has(id)) return subtreeWidthCache.get(id)!
+  // ---- Left-to-right tidy tree layout ----
+  // "subtreeHeight" = total vertical space needed for this node's subtree
+  const subtreeHeightCache = new Map<string, number>()
+  const subtreeHeight = (id: string): number => {
+    if (subtreeHeightCache.has(id)) return subtreeHeightCache.get(id)!
     const kids = childrenOf(id)
-    let w = nodeWidth
+    let h = heightOf(id)
     if (kids.length) {
-      const childrenWidth =
-        kids.reduce((sum, k) => sum + subtreeWidth(k.id), 0) +
-        hGap * (kids.length - 1)
-      w = Math.max(nodeWidth, childrenWidth)
+      const childrenHeight =
+        kids.reduce((sum, k) => sum + subtreeHeight(k.id), 0) +
+        vGap * (kids.length - 1)
+      h = Math.max(heightOf(id), childrenHeight)
     }
-    subtreeWidthCache.set(id, w)
-    return w
+    subtreeHeightCache.set(id, h)
+    return h
   }
 
   const pos: Record<string, Pos> = {}
+
+  // Place nodes left-to-right: parent at (leftX, topY centered in subtree),
+  // children stacked vertically to the right.
   const place = (id: string, leftX: number, topY: number) => {
-    const w = subtreeWidth(id)
-    pos[id] = { x: leftX + (w - nodeWidth) / 2, y: topY }
+    const h = subtreeHeight(id)
+    // Center node vertically within its subtree space
+    pos[id] = { x: leftX, y: topY + (h - heightOf(id)) / 2 }
     const kids = childrenOf(id)
     if (!kids.length) return
     const childrenTotal =
-      kids.reduce((sum, k) => sum + subtreeWidth(k.id), 0) +
-      hGap * (kids.length - 1)
-    let childX = leftX + (w - childrenTotal) / 2
-    const childY = topY + heightOf(id) + vGap
+      kids.reduce((sum, k) => sum + subtreeHeight(k.id), 0) +
+      vGap * (kids.length - 1)
+    const childX = leftX + nodeWidth + hGap
+    let childY = topY + (h - childrenTotal) / 2
     for (const k of kids) {
       place(k.id, childX, childY)
-      childX += subtreeWidth(k.id) + hGap
+      childY += subtreeHeight(k.id) + vGap
     }
   }
 
+  // Lay out root nodes stacked vertically
   const roots = childrenOf(null)
-  let rootX = 0
+  let rootY = 0
   for (const r of roots) {
-    place(r.id, rootX, 0)
-    rootX += subtreeWidth(r.id) + hGap
+    place(r.id, 0, rootY)
+    rootY += subtreeHeight(r.id) + vGap
   }
 
   // Bounding box of the whole tree.
@@ -122,8 +128,7 @@ export function TreeLayout({
     maxRight = Math.max(maxRight, p.x + nodeWidth)
     maxBottom = Math.max(maxBottom, p.y + heightOf(it.id))
   }
-  // Room for the add-child buttons / add-root row beneath the tree.
-  const padBottom = 56
+  const padRight = 80
 
   // Is `candidate` inside the subtree rooted at `rootId`? (cycle guard)
   const isDescendant = (rootId: string, candidate: string): boolean => {
@@ -133,7 +138,6 @@ export function TreeLayout({
   const canDrop = (targetId: string | null) => {
     if (!dragId) return false
     if (targetId === null) {
-      // Dropping to root is only meaningful if not already a root.
       return items.find((i) => i.id === dragId)?.parentId !== null
     }
     if (targetId === dragId) return false
@@ -141,24 +145,42 @@ export function TreeLayout({
     return items.find((i) => i.id === dragId)?.parentId !== targetId
   }
 
+  // Connectors: horizontal bezier curves from parent right-center to child left-center
   const connectors: ReactNode[] = []
   for (const it of items) {
     if (it.parentId === null) continue
     const c = pos[it.id]
     const p = pos[it.parentId]
     if (!c || !p) continue
-    const startX = p.x + nodeWidth / 2
-    const startY = p.y + heightOf(it.parentId)
-    const endX = c.x + nodeWidth / 2
-    const endY = c.y
-    const midY = startY + (endY - startY) / 2
+    const startX = p.x + nodeWidth
+    const startY = p.y + heightOf(it.parentId) / 2
+    const endX = c.x
+    const endY = c.y + heightOf(it.id) / 2
+    const midX = startX + (endX - startX) / 2
     connectors.push(
       <path
         key={`link-${it.id}`}
-        d={`M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`}
+        d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`}
         fill="none"
         stroke="color-mix(in srgb, var(--foreground) 35%, transparent)"
         strokeWidth={2}
+      />,
+    )
+    // Connection dots at start and end
+    connectors.push(
+      <circle
+        key={`dot-start-${it.id}`}
+        cx={startX}
+        cy={startY}
+        r={3}
+        fill="color-mix(in srgb, var(--foreground) 35%, transparent)"
+      />,
+      <circle
+        key={`dot-end-${it.id}`}
+        cx={endX}
+        cy={endY}
+        r={3}
+        fill="color-mix(in srgb, var(--foreground) 35%, transparent)"
       />,
     )
   }
@@ -183,13 +205,13 @@ export function TreeLayout({
     >
       <div
         className="relative"
-        style={{ width: maxRight, height: maxBottom + padBottom }}
+        style={{ width: maxRight + padRight, height: maxBottom + 56 }}
       >
         {/* Connector layer */}
         <svg
           className="pointer-events-none absolute left-0 top-0 overflow-visible"
-          width={maxRight}
-          height={maxBottom + padBottom}
+          width={maxRight + padRight}
+          height={maxBottom + 56}
         >
           {connectors}
         </svg>
@@ -198,7 +220,6 @@ export function TreeLayout({
         {items.map((it) => {
           const p = pos[it.id]
           if (!p) return null
-          const h = heightOf(it.id)
           const isDropTarget = dropId === it.id && canDrop(it.id)
           const handle = (
             <button
@@ -257,14 +278,14 @@ export function TreeLayout({
 
               {renderNode(it.id, handle)}
 
-              {/* Add-child affordance, centered on the bottom edge */}
+              {/* Add-child affordance, centered on the right edge */}
               <button
                 type="button"
                 onClick={() => onAddChild(it.id)}
                 aria-label="Add child page"
                 title="Add child page"
-                style={{ top: h }}
-                className="absolute left-1/2 z-10 mt-3 flex size-7 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
+                className="absolute top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
+                style={{ left: nodeWidth + 12 }}
               >
                 <Plus className="size-4" />
               </button>
@@ -272,11 +293,11 @@ export function TreeLayout({
           )
         })}
 
-        {/* Add root page — to the right of the last root frame */}
+        {/* Add root page — below the last root frame */}
         <button
           type="button"
           onClick={onAddRoot}
-          style={{ left: rootX, top: 0, width: nodeWidth }}
+          style={{ left: 0, top: rootY, width: nodeWidth }}
           className="absolute flex h-32 items-center justify-center gap-2 rounded-sm border-2 border-dashed border-border bg-card/40 text-[13px] font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary"
         >
           <Plus className="size-4" />
