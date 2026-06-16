@@ -97,7 +97,8 @@ function AddMockupForm() {
   const [kind, setKind] = useState<MockupKind>('image')
   const [name, setName] = useState('')
   const [pageId, setPageId] = useState<string>('')
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [html, setHtml] = useState('')
   const [error, setError] = useState<string | null>(null)
   const imageInput = useRef<HTMLInputElement>(null)
@@ -106,7 +107,9 @@ function AddMockupForm() {
   const reset = () => {
     setName('')
     setPageId('')
-    setImageUrl(null)
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setImageFile(null)
+    setImagePreview(null)
     setHtml('')
     setError(null)
   }
@@ -116,12 +119,10 @@ function AddMockupForm() {
       setError('Please choose an image file.')
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => {
-      setImageUrl(typeof reader.result === 'string' ? reader.result : null)
-      if (!name) setName(file.name.replace(/\.[^.]+$/, ''))
-    }
-    reader.readAsDataURL(file)
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
+    if (!name) setName(file.name.replace(/\.[^.]+$/, ''))
   }
 
   const readHtmlFile = (file: File) => {
@@ -135,7 +136,7 @@ function AddMockupForm() {
 
   const canAdd =
     name.trim().length > 0 &&
-    (kind === 'image' ? !!imageUrl : html.trim().length > 0)
+    (kind === 'image' ? !!imageFile : html.trim().length > 0)
 
   const add = async () => {
     if (!canAdd) return
@@ -143,7 +144,7 @@ function AddMockupForm() {
       name: name.trim(),
       kind,
       pageId: pageId || null,
-      imageUrl: kind === 'image' ? imageUrl ?? undefined : undefined,
+      imageFile: kind === 'image' ? imageFile ?? undefined : undefined,
       html: kind === 'html' ? html : undefined,
     })
     reset()
@@ -203,11 +204,11 @@ function AddMockupForm() {
         {kind === 'image' ? (
           <div className="flex flex-col gap-1.5">
             <FieldLabel>Image</FieldLabel>
-            {imageUrl ? (
+            {imagePreview ? (
               <div className="flex items-center gap-3 rounded-sm border border-border bg-background p-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={imageUrl || '/placeholder.svg'}
+                  src={imagePreview}
                   alt="Selected mockup preview"
                   className="h-16 w-24 rounded-sm border border-border object-cover"
                 />
@@ -216,7 +217,11 @@ function AddMockupForm() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setImageUrl(null)}
+                  onClick={() => {
+                    if (imagePreview) URL.revokeObjectURL(imagePreview)
+                    setImageFile(null)
+                    setImagePreview(null)
+                  }}
                   className="flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   aria-label="Remove selected image"
                 >

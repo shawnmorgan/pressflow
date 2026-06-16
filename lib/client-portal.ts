@@ -86,6 +86,8 @@ export type PortalMockup = {
   name: string
   kind: MockupKind
   pageId: string | null
+  /** Signed URL for image mockups (resolved by edge function). */
+  imageUrl?: string
   html?: string
   createdAt: number
 }
@@ -175,6 +177,7 @@ export async function resolveClientProject(
     name: m.name ?? 'Untitled',
     kind: (m.kind as MockupKind) ?? 'html',
     pageId: m.page_id ?? null,
+    imageUrl: m.image_url ?? undefined,
     html: m.html ?? undefined,
     createdAt: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
   }))

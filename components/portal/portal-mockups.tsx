@@ -106,12 +106,19 @@ function MockupReview({
             </span>
           )}
         </div>
-        {mockup.html ? (
+        {mockup.kind === 'html' && mockup.html ? (
           <iframe
             title={`${mockup.name} preview`}
             srcDoc={mockup.html}
             sandbox=""
             className="h-[520px] w-full bg-white"
+          />
+        ) : mockup.kind === 'image' && mockup.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={mockup.imageUrl}
+            alt={`${mockup.name} mockup`}
+            className="max-h-[520px] w-full object-cover object-top"
           />
         ) : (
           <div className="flex h-[320px] items-center justify-center bg-muted/30 text-[13px] text-muted-foreground">
