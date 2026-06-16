@@ -339,11 +339,11 @@ function seed(
   return types.map(({ type, source }) => newSection(type, source))
 }
 
-const homeId = uid('pg')
-const aboutId = uid('pg')
-const servicesId = uid('pg')
-const pricingId = uid('pg')
-const contactId = uid('pg')
+const homeId = crypto.randomUUID()
+const aboutId = crypto.randomUUID()
+const servicesId = crypto.randomUUID()
+const pricingId = crypto.randomUUID()
+const contactId = crypto.randomUUID()
 
 export const DEFAULT_PAGES: Page[] = [
   {
