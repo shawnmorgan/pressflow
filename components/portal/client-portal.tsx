@@ -91,7 +91,15 @@ export function ClientPortal({ project }: { project: ClientProject }) {
         {/* Section nav */}
         <nav className="mx-auto max-w-4xl px-3">
           <ul className="flex items-center gap-1 overflow-x-auto">
-            {NAV.map((item) => {
+            {NAV.filter((item) => {
+              // Overview and assets are always visible
+              if (item.key === 'overview' || item.key === 'assets') return true
+              // Other tabs respect the visible_views setting from project settings
+              const views = project.permissions.visibleViews
+              // If no views configured yet, show all (backwards-compat)
+              if (!views || views.length === 0) return true
+              return views.includes(item.key)
+            }).map((item) => {
               const Icon = item.icon
               const isActive = active === item.key
               return (

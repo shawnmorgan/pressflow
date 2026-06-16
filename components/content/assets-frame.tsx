@@ -22,7 +22,7 @@ import { supabase } from '@/lib/supabase'
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
 
-type AssetCategory = 'branding' | 'image' | 'video' | 'file'
+type AssetCategory = 'branding' | 'image' | 'video' | 'file' | 'logo' | 'icon'
 
 type Asset = {
   id: string
@@ -86,7 +86,7 @@ function useAssets(projectId?: string) {
 
     if (!data) { setLoading(false); return }
 
-    const viewable = data.filter((a: any) => a.kind === 'image' || a.category === 'branding' || a.category === 'video')
+    const viewable = data.filter((a: any) => a.kind === 'image' || a.category === 'branding' || a.category === 'logo' || a.category === 'icon' || a.category === 'video')
     const paths = viewable.map((a: any) => a.original_path)
     let urlMap = new Map<string, string>()
     if (paths.length > 0) {
@@ -159,6 +159,16 @@ function useAssets(projectId?: string) {
     setAssets((prev) => prev.filter((a) => a.id !== asset.id))
   }
 
+  const removeAssets = async (toRemove: Asset[]) => {
+    if (toRemove.length === 0) return
+    await supabase.storage.from('assets').remove(toRemove.map((a) => a.original_path))
+    await supabase.from('assets').delete().in('id', toRemove.map((a) => a.id))
+    setAssets((prev) => {
+      const ids = new Set(toRemove.map((a) => a.id))
+      return prev.filter((a) => !ids.has(a.id))
+    })
+  }
+
   const downloadAsset = async (asset: Asset) => {
     if (!asset.signedUrl) {
       const { data } = await supabase.storage.from('assets').createSignedUrl(asset.original_path, 60)
@@ -168,7 +178,7 @@ function useAssets(projectId?: string) {
     window.open(asset.signedUrl, '_blank')
   }
 
-  return { assets, loading, uploading, uploadFiles, removeAsset, downloadAsset }
+  return { assets, loading, uploading, uploadFiles, removeAsset, removeAssets, downloadAsset }
 }
 
 /* ------------------------------------------------------------------ */
@@ -176,10 +186,12 @@ function useAssets(projectId?: string) {
 /* ------------------------------------------------------------------ */
 
 export function AssetsFrame({ projectId }: { projectId?: string }) {
-  const { assets, loading, uploading, uploadFiles, removeAsset, downloadAsset } = useAssets(projectId)
+  const { assets, loading, uploading, uploadFiles, removeAsset, removeAssets, downloadAsset } = useAssets(projectId)
   const [detailAsset, setDetailAsset] = useState<Asset | null>(null)
 
   const branding = assets.filter((a) => a.category === 'branding')
+  const logos = assets.filter((a) => a.category === 'logo')
+  const icons = assets.filter((a) => a.category === 'icon')
   const images = assets.filter((a) => a.category === 'image')
   const videos = assets.filter((a) => a.category === 'video')
   const files = assets.filter((a) => a.category === 'file')
@@ -199,12 +211,48 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
         onPreview={setDetailAsset}
       />
 
-      {/* ── Images Frame ── */}
-      <ImagesFrame
+      {/* ── Logos Frame ── */}
+      <ImageGridFrame
+        title="Logos"
+        frameId="assets-logos"
+        category="logo"
+        accept="image/*,.svg"
+        emptyLabel="Upload logos"
         loading={loading}
         uploading={uploading}
-        images={images}
+        items={logos}
         uploadFiles={uploadFiles}
+        removeAssets={removeAssets}
+        onPreview={setDetailAsset}
+      />
+
+      {/* ── Icons Frame ── */}
+      <ImageGridFrame
+        title="Icons"
+        frameId="assets-icons"
+        category="icon"
+        accept="image/*,.svg"
+        emptyLabel="Upload icons"
+        loading={loading}
+        uploading={uploading}
+        items={icons}
+        uploadFiles={uploadFiles}
+        removeAssets={removeAssets}
+        onPreview={setDetailAsset}
+      />
+
+      {/* ── Images Frame ── */}
+      <ImageGridFrame
+        title="Images"
+        frameId="assets-images"
+        category="image"
+        accept="image/*"
+        emptyLabel="Upload images"
+        loading={loading}
+        uploading={uploading}
+        items={images}
+        uploadFiles={uploadFiles}
+        removeAssets={removeAssets}
         onPreview={setDetailAsset}
       />
 
@@ -214,6 +262,7 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
         uploading={uploading}
         videos={videos}
         uploadFiles={uploadFiles}
+        removeAssets={removeAssets}
         onPreview={setDetailAsset}
       />
 
@@ -223,6 +272,7 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
         uploading={uploading}
         files={files}
         uploadFiles={uploadFiles}
+        removeAssets={removeAssets}
         onPreview={setDetailAsset}
       />
 
@@ -364,67 +414,159 @@ function UploadingBar() {
   )
 }
 
-function ImagesFrame({
+function SelectionBar({
+  count,
+  onDelete,
+  onCancel,
+}: {
+  count: number
+  onDelete: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="flex items-center justify-between border-b border-destructive/20 bg-destructive/5 px-4 py-2">
+      <span className="text-[11px] font-medium text-foreground">
+        {count} selected
+      </span>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-sm px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="inline-flex items-center gap-1 rounded-sm bg-destructive px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-destructive/90"
+        >
+          <Trash className="size-3" />
+          Delete
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared image grid frame — used for Images, Logos, Icons             */
+/* ------------------------------------------------------------------ */
+
+function ImageGridFrame({
+  title,
+  frameId,
+  category,
+  accept,
+  emptyLabel,
   loading,
   uploading,
-  images,
+  items,
   uploadFiles,
+  removeAssets,
   onPreview,
 }: {
+  title: string
+  frameId: string
+  category: AssetCategory
+  accept: string
+  emptyLabel: string
   loading: boolean
   uploading: boolean
-  images: Asset[]
+  items: Asset[]
   uploadFiles: (files: File[], category?: AssetCategory) => Promise<void>
+  removeAssets: (assets: Asset[]) => Promise<void>
   onPreview: (asset: Asset) => void
 }) {
-  const addImages = () => {
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+
+  const handleBulkDelete = async () => {
+    await removeAssets(items.filter((a) => selected.has(a.id)))
+    setSelected(new Set())
+    setSelecting(false)
+  }
+
+  const addItems = () => {
     const input = document.createElement('input')
     input.type = 'file'
     input.multiple = true
-    input.accept = 'image/*'
+    input.accept = accept
     input.onchange = () => {
-      if (input.files?.length) uploadFiles(Array.from(input.files), 'image')
+      if (input.files?.length) uploadFiles(Array.from(input.files), category)
     }
     input.click()
   }
 
   return (
     <Frame
-      title="Images"
-      frameId="assets-images"
+      title={title}
+      frameId={frameId}
       width={380}
       headerRight={
-        <button
-          type="button"
-          onClick={addImages}
-          title="Add images"
-          className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Plus className="size-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          {items.length > 0 && (
+            <button
+              type="button"
+              onClick={() => { setSelecting(!selecting); setSelected(new Set()) }}
+              title={selecting ? 'Cancel selection' : 'Select'}
+              className={`flex size-6 items-center justify-center rounded-sm transition-colors ${
+                selecting
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <Check className="size-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={addItems}
+            title={`Add ${title.toLowerCase()}`}
+            className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Plus className="size-3.5" />
+          </button>
+        </div>
       }
     >
       {uploading && <UploadingBar />}
+      {selecting && selected.size > 0 && (
+        <SelectionBar
+          count={selected.size}
+          onDelete={handleBulkDelete}
+          onCancel={() => { setSelecting(false); setSelected(new Set()) }}
+        />
+      )}
       <div className="p-4">
         {loading ? (
           <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
-        ) : images.length === 0 ? (
+        ) : items.length === 0 ? (
           <button
             type="button"
-            onClick={addImages}
+            onClick={addItems}
             className="flex w-full flex-col items-center gap-1.5 rounded-sm border border-dashed border-border bg-background px-3 py-6 text-center transition-colors hover:border-foreground/30"
           >
             <Upload className="size-4 text-muted-foreground" />
-            <span className="text-[12px] font-medium text-foreground">Upload images</span>
+            <span className="text-[12px] font-medium text-foreground">{emptyLabel}</span>
           </button>
         ) : (
           <div className="grid grid-cols-3 gap-2">
-            {images.map((asset) => (
+            {items.map((asset) => (
               <button
                 key={asset.id}
                 type="button"
-                onClick={() => onPreview(asset)}
-                className="group relative aspect-square overflow-hidden rounded-sm border border-border bg-muted transition-shadow hover:shadow-md"
+                onClick={() => selecting ? toggleSelect(asset.id) : onPreview(asset)}
+                className={`group relative aspect-square overflow-hidden rounded-sm border bg-muted transition-shadow hover:shadow-md ${
+                  selected.has(asset.id) ? 'border-primary ring-2 ring-primary' : 'border-border'
+                }`}
               >
                 {asset.signedUrl ? (
                   <img
@@ -437,9 +579,21 @@ function ImagesFrame({
                     <ImageIcon className="size-5 text-muted-foreground" />
                   </span>
                 )}
-                <span className="absolute inset-0 flex items-center justify-center bg-foreground/0 transition-colors group-hover:bg-foreground/20">
-                  <Eye className="size-5 text-white opacity-0 drop-shadow-sm transition-opacity group-hover:opacity-100" />
-                </span>
+                {selecting ? (
+                  <span
+                    className={`absolute left-1.5 top-1.5 flex size-5 items-center justify-center rounded-sm border-2 ${
+                      selected.has(asset.id)
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-white/80 bg-foreground/20'
+                    }`}
+                  >
+                    {selected.has(asset.id) && <Check className="size-3" />}
+                  </span>
+                ) : (
+                  <span className="absolute inset-0 flex items-center justify-center bg-foreground/0 transition-colors group-hover:bg-foreground/20">
+                    <Eye className="size-5 text-white opacity-0 drop-shadow-sm transition-opacity group-hover:opacity-100" />
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -458,14 +612,32 @@ function VideosFrame({
   uploading,
   videos,
   uploadFiles,
+  removeAssets,
   onPreview,
 }: {
   loading: boolean
   uploading: boolean
   videos: Asset[]
   uploadFiles: (files: File[], category?: AssetCategory) => Promise<void>
+  removeAssets: (assets: Asset[]) => Promise<void>
   onPreview: (asset: Asset) => void
 }) {
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+
+  const handleBulkDelete = async () => {
+    await removeAssets(videos.filter((a) => selected.has(a.id)))
+    setSelected(new Set())
+    setSelecting(false)
+  }
+
   const addVideos = () => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -483,17 +655,40 @@ function VideosFrame({
       frameId="assets-videos"
       width={380}
       headerRight={
-        <button
-          type="button"
-          onClick={addVideos}
-          title="Add videos"
-          className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Plus className="size-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          {videos.length > 0 && (
+            <button
+              type="button"
+              onClick={() => { setSelecting(!selecting); setSelected(new Set()) }}
+              title={selecting ? 'Cancel selection' : 'Select'}
+              className={`flex size-6 items-center justify-center rounded-sm transition-colors ${
+                selecting
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <Check className="size-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={addVideos}
+            title="Add videos"
+            className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Plus className="size-3.5" />
+          </button>
+        </div>
       }
     >
       {uploading && <UploadingBar />}
+      {selecting && selected.size > 0 && (
+        <SelectionBar
+          count={selected.size}
+          onDelete={handleBulkDelete}
+          onCancel={() => { setSelecting(false); setSelected(new Set()) }}
+        />
+      )}
       <div className="p-4">
         {loading ? (
           <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
@@ -512,15 +707,29 @@ function VideosFrame({
               <button
                 key={asset.id}
                 type="button"
-                onClick={() => onPreview(asset)}
-                className="group relative aspect-video overflow-hidden rounded-sm border border-border bg-muted transition-shadow hover:shadow-md"
+                onClick={() => selecting ? toggleSelect(asset.id) : onPreview(asset)}
+                className={`group relative aspect-video overflow-hidden rounded-sm border bg-muted transition-shadow hover:shadow-md ${
+                  selected.has(asset.id) ? 'border-primary ring-2 ring-primary' : 'border-border'
+                }`}
               >
                 <span className="flex size-full items-center justify-center">
                   <Film className="size-5 text-muted-foreground" />
                 </span>
-                <span className="absolute bottom-1 left-1 truncate rounded-sm bg-foreground/60 px-1.5 py-0.5 text-[9px] font-medium text-white">
-                  {asset.label}
-                </span>
+                {selecting ? (
+                  <span
+                    className={`absolute left-1.5 top-1.5 flex size-5 items-center justify-center rounded-sm border-2 ${
+                      selected.has(asset.id)
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-white/80 bg-foreground/20'
+                    }`}
+                  >
+                    {selected.has(asset.id) && <Check className="size-3" />}
+                  </span>
+                ) : (
+                  <span className="absolute bottom-1 left-1 truncate rounded-sm bg-foreground/60 px-1.5 py-0.5 text-[9px] font-medium text-white">
+                    {asset.label}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -539,14 +748,32 @@ function FilesFrame({
   uploading,
   files,
   uploadFiles,
+  removeAssets,
   onPreview,
 }: {
   loading: boolean
   uploading: boolean
   files: Asset[]
   uploadFiles: (files: File[], category?: AssetCategory) => Promise<void>
+  removeAssets: (assets: Asset[]) => Promise<void>
   onPreview: (asset: Asset) => void
 }) {
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+
+  const handleBulkDelete = async () => {
+    await removeAssets(files.filter((a) => selected.has(a.id)))
+    setSelected(new Set())
+    setSelecting(false)
+  }
+
   const addFiles = () => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -564,17 +791,40 @@ function FilesFrame({
       frameId="assets-files"
       width={380}
       headerRight={
-        <button
-          type="button"
-          onClick={addFiles}
-          title="Add files"
-          className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Plus className="size-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          {files.length > 0 && (
+            <button
+              type="button"
+              onClick={() => { setSelecting(!selecting); setSelected(new Set()) }}
+              title={selecting ? 'Cancel selection' : 'Select'}
+              className={`flex size-6 items-center justify-center rounded-sm transition-colors ${
+                selecting
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <Check className="size-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={addFiles}
+            title="Add files"
+            className="flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Plus className="size-3.5" />
+          </button>
+        </div>
       }
     >
       {uploading && <UploadingBar />}
+      {selecting && selected.size > 0 && (
+        <SelectionBar
+          count={selected.size}
+          onDelete={handleBulkDelete}
+          onCancel={() => { setSelecting(false); setSelected(new Set()) }}
+        />
+      )}
       <div className="p-4">
         {loading ? (
           <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
@@ -593,12 +843,32 @@ function FilesFrame({
               <button
                 key={asset.id}
                 type="button"
-                onClick={() => onPreview(asset)}
-                className="group flex items-center gap-3 rounded-sm border border-border bg-background p-2 text-left transition-colors hover:border-foreground/20"
+                onClick={() => selecting ? toggleSelect(asset.id) : onPreview(asset)}
+                className={`group flex items-center gap-3 rounded-sm border bg-background p-2 text-left transition-colors ${
+                  selected.has(asset.id)
+                    ? 'border-primary ring-2 ring-primary'
+                    : 'border-border hover:border-foreground/20'
+                }`}
               >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-sm border border-border bg-muted">
-                  <FileText className="size-4 text-muted-foreground" />
-                </span>
+                {selecting ? (
+                  <span
+                    className={`flex size-9 shrink-0 items-center justify-center rounded-sm border-2 ${
+                      selected.has(asset.id)
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-border bg-muted'
+                    }`}
+                  >
+                    {selected.has(asset.id) ? (
+                      <Check className="size-4" />
+                    ) : (
+                      <FileText className="size-4 text-muted-foreground" />
+                    )}
+                  </span>
+                ) : (
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-sm border border-border bg-muted">
+                    <FileText className="size-4 text-muted-foreground" />
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12px] font-medium text-foreground">
                     {asset.label ?? 'Untitled'}

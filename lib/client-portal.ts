@@ -72,6 +72,13 @@ export type PortalForm = {
   sent: boolean
 }
 
+/** Which portal sections are visible, as toggled in project settings. */
+export type PortalPermissions = {
+  visibleViews: string[]
+  canComment: boolean
+  canEditContent: boolean
+}
+
 export type ClientProject = {
   token: string
   agency: AgencyBrand
@@ -82,6 +89,10 @@ export type ClientProject = {
   stage: PortalStage
   calendarLink: string
   links: RelevantLink[]
+  /** Rich-text HTML set in project settings → portal home content. */
+  portalContent: string
+  /** Share-level permissions controlling what the portal shows. */
+  permissions: PortalPermissions
   pages: Page[]
   ds: DesignSystem
   /** Free-form content forms (the new model). */
@@ -130,15 +141,19 @@ export async function resolveClientProject(
     contactEmail: data.agency?.contactEmail ?? DEFAULT_AGENCY.contactEmail,
   }
 
-  const forms: PortalForm[] = (data.forms ?? [])
-    .filter((f: any) => f.sent)
-    .map((f: any) => ({
-      id: f.id,
-      kind: f.kind ?? 'content',
-      name: f.name ?? 'Untitled',
-      sections: f.sections ?? [],
-      sent: true,
-    }))
+  const forms: PortalForm[] = (data.forms ?? []).map((f: any) => ({
+    id: f.id,
+    kind: f.kind ?? 'content',
+    name: f.name ?? 'Untitled',
+    sections: f.sections ?? [],
+    sent: true,
+  }))
+
+  const permissions: PortalPermissions = {
+    visibleViews: data.share?.visibleViews ?? [],
+    canComment: data.share?.canComment ?? false,
+    canEditContent: data.share?.canEditContent ?? false,
+  }
 
   return {
     token: data.token,
@@ -149,6 +164,8 @@ export async function resolveClientProject(
     stage: (data.stage as PortalStage) ?? 'onboarding',
     calendarLink: data.calendarLink ?? '',
     links: (data.links as RelevantLink[]) ?? [],
+    portalContent: data.portalContent ?? '',
+    permissions,
     pages,
     ds,
     forms,

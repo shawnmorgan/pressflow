@@ -88,7 +88,16 @@ export function PortalOverview({
         blurb={`Here’s where ${project.projectName} stands and what happens next. ${project.agency.name} updates this as we go.`}
       />
 
-      {/* Stage tracker — Domino's-style progress */}
+      {/* Portal home content — rich text set by agency in project settings */}
+      {project.portalContent && (
+        <section
+          className="prose prose-sm max-w-none rounded-sm border border-border bg-card p-5 text-foreground prose-headings:text-foreground prose-p:text-muted-foreground prose-a:text-primary"
+          // Content authored by the agency in project settings (trusted)
+          dangerouslySetInnerHTML={{ __html: project.portalContent }}
+        />
+      )}
+
+      {/* Stage tracker — Domino’s-style progress */}
       <section className="rounded-sm border border-border bg-card p-5">
         <FieldLabel>Project progress</FieldLabel>
         <ol className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-0">

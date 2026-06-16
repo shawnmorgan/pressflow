@@ -260,33 +260,30 @@ export function PortalAssets({ token }: { token: string }) {
         <div>
           <h2 className="text-[18px] font-semibold text-foreground">Assets</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Upload your logos, images, videos, and files. Your agency will use these to build your site.
+            Upload your logo and any images, videos, or files. We'll sort everything automatically — just drag and drop.
           </p>
         </div>
 
-        {/* Branding */}
+        {/* Logo upload — dedicated slot */}
         <section>
-          <SectionHeader icon={Palette} title="Branding" />
-          <div className="mt-3 flex flex-col gap-3">
-            {BRANDING_SLOTS.map(({ slot, label, hint }) => {
-              const asset = getSlotAsset(slot)
+          <SectionHeader icon={Palette} title="Your Logo" />
+          <div className="mt-3">
+            {(() => {
+              const logoAsset = getSlotAsset('logo')
               return (
-                <div
-                  key={slot}
-                  className="flex items-center gap-4 rounded-sm border border-border bg-card p-3"
-                >
-                  {asset?.signedUrl ? (
+                <div className="flex items-center gap-4 rounded-sm border border-border bg-card p-3">
+                  {logoAsset?.signedUrl ? (
                     <div className="flex size-16 shrink-0 items-center justify-center rounded-sm border border-border bg-white p-1">
                       <img
-                        src={asset.signedUrl}
-                        alt={label}
+                        src={logoAsset.signedUrl}
+                        alt="Logo"
                         className="max-h-full max-w-full object-contain"
                       />
                     </div>
                   ) : (
                     <button
                       type="button"
-                      onClick={() => handleBrandingUpload(slot)}
+                      onClick={() => handleBrandingUpload('logo')}
                       disabled={uploading}
                       className="flex size-16 shrink-0 items-center justify-center rounded-sm border border-dashed border-border bg-muted/30 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:opacity-50"
                     >
@@ -294,13 +291,13 @@ export function PortalAssets({ token }: { token: string }) {
                     </button>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-medium text-foreground">{label}</p>
-                    <p className="text-[12px] text-muted-foreground">{hint}</p>
+                    <p className="text-[13px] font-medium text-foreground">Primary Logo</p>
+                    <p className="text-[12px] text-muted-foreground">Upload your main logo so we can use it on the site</p>
                   </div>
-                  {asset && (
+                  {logoAsset && (
                     <button
                       type="button"
-                      onClick={() => handleBrandingUpload(slot)}
+                      onClick={() => handleBrandingUpload('logo')}
                       disabled={uploading}
                       className="rounded-sm border border-border bg-background px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-foreground/30 disabled:opacity-50"
                     >
@@ -309,24 +306,32 @@ export function PortalAssets({ token }: { token: string }) {
                   )}
                 </div>
               )
-            })}
+            })()}
           </div>
         </section>
 
-        {/* Images */}
+        {/* Single drag-and-drop upload zone — auto-categorizes by file type */}
         <section>
-          <SectionHeader icon={ImageIcon} title="Images" count={images.length}>
+          <SectionHeader icon={Upload} title="Upload Files">
             <UploadButton
-              label="Upload images"
-              accept="image/*"
+              label="Browse files"
+              accept="image/*,video/*,application/pdf,.doc,.docx,.zip,.txt,.csv,.xls,.xlsx,.svg"
               multiple
               uploading={uploading}
-              onFiles={(files) => uploadFiles(files, 'image')}
+              onFiles={(f) => uploadFiles(f)}
             />
           </SectionHeader>
-          {images.length === 0 ? (
-            <p className="mt-3 text-center text-[13px] text-muted-foreground">No images yet</p>
-          ) : (
+          <div className="mt-3 flex flex-col items-center gap-2 rounded-sm border-2 border-dashed border-border bg-muted/20 px-4 py-8 text-center transition-colors hover:border-foreground/20">
+            <Upload className="size-6 text-muted-foreground" />
+            <p className="text-[13px] font-medium text-foreground">Drag &amp; drop files anywhere on this page</p>
+            <p className="text-[12px] text-muted-foreground">Images, videos, documents — we'll sort them automatically</p>
+          </div>
+        </section>
+
+        {/* Uploaded assets — auto-sorted by type */}
+        {images.length > 0 && (
+          <section>
+            <SectionHeader icon={ImageIcon} title="Images" count={images.length} />
             <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
               {images.map((asset) => (
                 <button
@@ -348,23 +353,12 @@ export function PortalAssets({ token }: { token: string }) {
                 </button>
               ))}
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
-        {/* Videos */}
-        <section>
-          <SectionHeader icon={Film} title="Videos" count={videos.length}>
-            <UploadButton
-              label="Upload videos"
-              accept="video/*"
-              multiple
-              uploading={uploading}
-              onFiles={(files) => uploadFiles(files, 'video')}
-            />
-          </SectionHeader>
-          {videos.length === 0 ? (
-            <p className="mt-3 text-center text-[13px] text-muted-foreground">No videos yet</p>
-          ) : (
+        {videos.length > 0 && (
+          <section>
+            <SectionHeader icon={Film} title="Videos" count={videos.length} />
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {videos.map((asset) => (
                 <button
@@ -382,23 +376,12 @@ export function PortalAssets({ token }: { token: string }) {
                 </button>
               ))}
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
-        {/* Files */}
-        <section>
-          <SectionHeader icon={FileText} title="Files" count={files.length}>
-            <UploadButton
-              label="Upload files"
-              accept="application/pdf,.doc,.docx,.zip,.txt,.csv,.xls,.xlsx"
-              multiple
-              uploading={uploading}
-              onFiles={(files) => uploadFiles(files, 'file')}
-            />
-          </SectionHeader>
-          {files.length === 0 ? (
-            <p className="mt-3 text-center text-[13px] text-muted-foreground">No files yet</p>
-          ) : (
+        {files.length > 0 && (
+          <section>
+            <SectionHeader icon={FileText} title="Files" count={files.length} />
             <div className="mt-3 flex flex-col gap-2">
               {files.map((asset) => (
                 <button
@@ -421,8 +404,8 @@ export function PortalAssets({ token }: { token: string }) {
                 </button>
               ))}
             </div>
-          )}
-        </section>
+          </section>
+        )}
       </div>
 
       {/* Detail modal */}

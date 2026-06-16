@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
   const { data: project } = await supabase
     .from("projects")
     .select(
-      "name, client_name, client_domain, stage, calendar_link, relevant_links, account_id, accounts(name, white_label)"
+      "name, client_name, client_domain, stage, calendar_link, relevant_links, portal_content, account_id, accounts(name, white_label)"
     )
     .eq("id", share.project_id)
     .single();
@@ -58,11 +58,12 @@ Deno.serve(async (req) => {
     .eq("project_id", share.project_id)
     .single();
 
-  // Load content forms (for client content collection)
+  // Load content forms — only forms that have been sent to client
   const { data: formsData } = await supabase
     .from("content_forms")
     .select("id, kind, name, sections, sent, sent_at")
-    .eq("project_id", share.project_id);
+    .eq("project_id", share.project_id)
+    .eq("sent", true);
 
   // Load mockups
   const { data: mockupsData } = await supabase
@@ -113,6 +114,7 @@ Deno.serve(async (req) => {
     stage: (project as any).stage ?? "onboarding",
     calendarLink: (project as any).calendar_link ?? "",
     links: (project as any).relevant_links ?? [],
+    portalContent: (project as any).portal_content ?? "",
     pages,
     ds: dsData?.tokens ?? null,
     forms: formsData ?? [],
