@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { Plus, GripVertical } from '@/components/icons'
+import { Plus, GripVertical, X } from '@/components/icons'
 import { useFramePositions } from '@/lib/frame-positions'
 
 export type TreeItem = { id: string; parentId: string | null }
@@ -61,6 +61,7 @@ export function TreeLayout({
   const positions = useFramePositions()
   // Force re-render when frames move so connectors update
   const [, setTick] = useState(0)
+  const [hoveredLink, setHoveredLink] = useState<string | null>(null)
 
   // Measure node heights after layout; reflow when they change.
   useLayoutEffect(() => {
@@ -211,8 +212,9 @@ export function TreeLayout({
     )
   }
 
-  // Connectors using ACTUAL positions
-  const connectors: ReactNode[] = []
+  // Connectors using ACTUAL positions — store data for hit-area + delete overlay
+  type LinkData = { childId: string; d: string; mx: number; my: number }
+  const links: LinkData[] = []
   for (const it of items) {
     if (it.parentId === null) continue
     const cPos = actualPos(it.id)
@@ -221,16 +223,13 @@ export function TreeLayout({
     const startY = pPos.y + heightOf(it.parentId) / 2
     const endX = cPos.x
     const endY = cPos.y + heightOf(it.id) / 2
-    const midX = startX + (endX - startX) / 2
-    connectors.push(
-      <path
-        key={`link-${it.id}`}
-        d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`}
-        fill="none"
-        stroke="color-mix(in srgb, var(--foreground) 35%, transparent)"
-        strokeWidth={2}
-      />,
-    )
+    const cpX = startX + (endX - startX) / 2
+    links.push({
+      childId: it.id,
+      d: `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`,
+      mx: (startX + endX) / 2,
+      my: (startY + endY) / 2,
+    })
   }
 
   // Listen for frame moves to re-render connectors
@@ -261,13 +260,64 @@ export function TreeLayout({
       >
         {/* Connector layer */}
         <svg
-          className="pointer-events-none absolute left-0 top-0 overflow-visible"
+          className="absolute left-0 top-0 overflow-visible"
           width={maxRight + padRight}
           height={maxBottom + 56}
         >
-          {connectors}
-          {anchorDots}
+          {links.map((link) => (
+            <g key={`link-${link.childId}`}>
+              <path
+                d={link.d}
+                fill="none"
+                stroke={
+                  hoveredLink === link.childId
+                    ? 'var(--destructive)'
+                    : 'color-mix(in srgb, var(--foreground) 35%, transparent)'
+                }
+                strokeWidth={2}
+                className="pointer-events-none transition-colors"
+              />
+              <path
+                d={link.d}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={18}
+                className="cursor-pointer"
+                style={{ pointerEvents: 'stroke' }}
+                onMouseEnter={() => setHoveredLink(link.childId)}
+                onMouseLeave={() => setHoveredLink(null)}
+              />
+            </g>
+          ))}
+          <g className="pointer-events-none">{anchorDots}</g>
         </svg>
+
+        {/* Delete-link button — HTML overlay at connector midpoint */}
+        {hoveredLink != null && (() => {
+          const link = links.find((l) => l.childId === hoveredLink)
+          if (!link) return null
+          return (
+            <button
+              type="button"
+              onClick={() => {
+                onReparent(hoveredLink, null)
+                setHoveredLink(null)
+              }}
+              onMouseEnter={() => setHoveredLink(hoveredLink)}
+              onMouseLeave={() => setHoveredLink(null)}
+              aria-label="Remove link"
+              title="Remove link between pages"
+              className="absolute z-20 flex size-6 items-center justify-center rounded-full border border-destructive/40 bg-card text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-white"
+              style={{
+                left: link.mx,
+                top: link.my,
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
+              <X className="size-3.5" />
+            </button>
+          )
+        })()}
 
         {/* Nodes — positioned at BASE positions; Frame applies its own drag offset via transform */}
         {items.map((it) => {
