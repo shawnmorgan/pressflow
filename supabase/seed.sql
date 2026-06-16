@@ -5,6 +5,7 @@
 
 -- 1. Create auth user (owner) — password: pressflow123
 -- This uses Supabase's auth.users directly for seeding
+-- pgcrypto lives in the extensions schema on Supabase
 insert into auth.users (
   id, instance_id, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, aud, role, created_at, updated_at,
@@ -13,7 +14,7 @@ insert into auth.users (
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000000',
   'shawn@series5.studio',
-  crypt('pressflow123', gen_salt('bf')),
+  extensions.crypt('pressflow123', extensions.gen_salt('bf')),
   now(),
   '{"provider":"email","providers":["email"]}',
   '{"name":"Shawn Morgan"}',
