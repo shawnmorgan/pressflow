@@ -81,10 +81,12 @@ export function Frame({
       if (!movedRef.current && Math.abs(dx) + Math.abs(dy) > 3) {
         movedRef.current = true
       }
-      setOffset({
+      const next = {
         x: dragRef.current.origX + dx / scaleRef.current,
         y: dragRef.current.origY + dy / scaleRef.current,
-      })
+      }
+      setOffset(next)
+      positions.set(id, next)
     }
 
     const onUp = () => {

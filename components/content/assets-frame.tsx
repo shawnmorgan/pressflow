@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Frame } from '@/components/canvas/frame'
 import {
   Check,
@@ -225,14 +226,15 @@ export function AssetsFrame({ projectId }: { projectId?: string }) {
         onPreview={setDetailAsset}
       />
 
-      {/* Asset detail modal */}
-      {detailAsset && (
+      {/* Asset detail modal — portaled to body so it covers the full viewport */}
+      {detailAsset && createPortal(
         <AssetDetailModal
           asset={detailAsset}
           onClose={() => setDetailAsset(null)}
           onDownload={() => downloadAsset(detailAsset)}
           onDelete={() => { removeAsset(detailAsset); setDetailAsset(null) }}
-        />
+        />,
+        document.body
       )}
     </>
   )

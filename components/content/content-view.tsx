@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { InfiniteCanvas } from '@/components/canvas/infinite-canvas'
 import { Frame } from '@/components/canvas/frame'
 import { TemplatePicker } from '@/components/content-builder/template-picker'
@@ -282,11 +283,13 @@ function ContentFormFrame({ form, projectId }: { form: ContentForm; projectId?: 
           )}
         </div>
 
-        {savingTemplate && (
-          <SaveTemplateModal formId={form.id} onClose={() => setSavingTemplate(false)} projectId={projectId} />
+        {savingTemplate && createPortal(
+          <SaveTemplateModal formId={form.id} onClose={() => setSavingTemplate(false)} projectId={projectId} />,
+          document.body
         )}
-        {exportOpen && (
-          <ExportPdfModal onClose={() => setExportOpen(false)} />
+        {exportOpen && createPortal(
+          <ExportPdfModal onClose={() => setExportOpen(false)} />,
+          document.body
         )}
       </div>
     </Frame>

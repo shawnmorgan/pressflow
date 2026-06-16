@@ -274,6 +274,8 @@ export function TreeLayout({
           const bp = basePos[it.id]
           if (!bp) return null
           const ap = actualPos(it.id)
+          const off = getOffset(it.id)
+          const h = heightOf(it.id)
           const isDropTarget = dropId === it.id && canDrop(it.id)
           const handle = (
             <button
@@ -332,23 +334,56 @@ export function TreeLayout({
 
               {renderNode(it.id, handle)}
 
-              {/* Add-child affordance — positioned using actual offset so it follows the frame */}
+              {/* Connection handles — follow frame drag offset */}
               <div
                 className="pointer-events-auto absolute top-0 left-0"
                 style={{
                   width: 0,
                   height: 0,
+                  transform: `translate(${off.x}px, ${off.y}px)`,
                 }}
               >
+                {/* Right: add child page */}
                 <button
                   type="button"
                   onClick={() => onAddChild(it.id)}
                   aria-label="Add child page"
                   title="Add child page"
-                  className="absolute z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
+                  className="absolute z-10 flex size-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
                   style={{
                     left: nodeWidth + 12,
-                    top: heightOf(it.id) / 2,
+                    top: h / 2,
+                    transform: 'translateY(-50%)',
+                  }}
+                >
+                  <Plus className="size-4" />
+                </button>
+                {/* Left: add sibling page */}
+                <button
+                  type="button"
+                  onClick={() => it.parentId ? onAddChild(it.parentId) : onAddRoot()}
+                  aria-label="Add sibling page"
+                  title="Add sibling page"
+                  className="absolute z-10 flex size-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
+                  style={{
+                    left: -12,
+                    top: h / 2,
+                    transform: 'translate(-100%, -50%)',
+                  }}
+                >
+                  <Plus className="size-4" />
+                </button>
+                {/* Bottom: add sibling page */}
+                <button
+                  type="button"
+                  onClick={() => it.parentId ? onAddChild(it.parentId) : onAddRoot()}
+                  aria-label="Add sibling page below"
+                  title="Add sibling page below"
+                  className="absolute z-10 flex size-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
+                  style={{
+                    left: nodeWidth / 2,
+                    top: h + 12,
+                    transform: 'translateX(-50%)',
                   }}
                 >
                   <Plus className="size-4" />
