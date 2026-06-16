@@ -480,6 +480,7 @@ function ImageGridFrame({
 }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [dragOver, setDragOver] = useState(false)
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -545,7 +546,25 @@ function ImageGridFrame({
           onCancel={() => { setSelecting(false); setSelected(new Set()) }}
         />
       )}
-      <div className="p-4">
+      <div
+        className="relative p-4"
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true) }}
+        onDragLeave={(e) => { e.stopPropagation(); setDragOver(false) }}
+        onDrop={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setDragOver(false)
+          if (e.dataTransfer.files.length) uploadFiles(Array.from(e.dataTransfer.files), category)
+        }}
+      >
+        {dragOver && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm border-2 border-dashed border-primary bg-primary/10">
+            <div className="flex flex-col items-center gap-1">
+              <Upload className="size-5 text-primary" />
+              <span className="text-[12px] font-semibold text-primary">Upload</span>
+            </div>
+          </div>
+        )}
         {loading ? (
           <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
         ) : items.length === 0 ? (
@@ -624,6 +643,7 @@ function VideosFrame({
 }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [dragOver, setDragOver] = useState(false)
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -689,7 +709,25 @@ function VideosFrame({
           onCancel={() => { setSelecting(false); setSelected(new Set()) }}
         />
       )}
-      <div className="p-4">
+      <div
+        className="relative p-4"
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true) }}
+        onDragLeave={(e) => { e.stopPropagation(); setDragOver(false) }}
+        onDrop={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setDragOver(false)
+          if (e.dataTransfer.files.length) uploadFiles(Array.from(e.dataTransfer.files), 'video')
+        }}
+      >
+        {dragOver && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm border-2 border-dashed border-primary bg-primary/10">
+            <div className="flex flex-col items-center gap-1">
+              <Upload className="size-5 text-primary" />
+              <span className="text-[12px] font-semibold text-primary">Upload</span>
+            </div>
+          </div>
+        )}
         {loading ? (
           <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
         ) : videos.length === 0 ? (
@@ -760,6 +798,7 @@ function FilesFrame({
 }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [dragOver, setDragOver] = useState(false)
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -825,7 +864,25 @@ function FilesFrame({
           onCancel={() => { setSelecting(false); setSelected(new Set()) }}
         />
       )}
-      <div className="p-4">
+      <div
+        className="relative p-4"
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true) }}
+        onDragLeave={(e) => { e.stopPropagation(); setDragOver(false) }}
+        onDrop={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setDragOver(false)
+          if (e.dataTransfer.files.length) uploadFiles(Array.from(e.dataTransfer.files), 'file')
+        }}
+      >
+        {dragOver && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm border-2 border-dashed border-primary bg-primary/10">
+            <div className="flex flex-col items-center gap-1">
+              <Upload className="size-5 text-primary" />
+              <span className="text-[12px] font-semibold text-primary">Upload</span>
+            </div>
+          </div>
+        )}
         {loading ? (
           <p className="py-4 text-center text-[12px] text-muted-foreground">Loading...</p>
         ) : files.length === 0 ? (

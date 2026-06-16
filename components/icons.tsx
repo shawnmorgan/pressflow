@@ -118,17 +118,6 @@ export function Ruler(props: IconProps) {
   )
 }
 
-export function Corners(props: IconProps) {
-  return (
-    <svg {...base(props)} aria-hidden="true">
-      <path d="M4 9V6a2 2 0 0 1 2-2h3" />
-      <path d="M20 9V6a2 2 0 0 0-2-2h-3" />
-      <path d="M4 15v3a2 2 0 0 0 2 2h3" />
-      <path d="M20 15v3a2 2 0 0 1-2 2h-3" />
-    </svg>
-  )
-}
-
 export function Plug(props: IconProps) {
   return (
     <svg {...base(props)} aria-hidden="true">
@@ -279,24 +268,6 @@ export function LinkIcon(props: IconProps) {
   )
 }
 
-export function ButtonIcon(props: IconProps) {
-  return (
-    <svg {...base(props)} aria-hidden="true">
-      <rect x="2" y="7" width="20" height="10" rx="1" />
-      <path d="M7 12h10" />
-    </svg>
-  )
-}
-
-export function Columns(props: IconProps) {
-  return (
-    <svg {...base(props)} aria-hidden="true">
-      <rect x="3" y="4" width="18" height="16" rx="1" />
-      <path d="M9 4v16M15 4v16" />
-    </svg>
-  )
-}
-
 export function ShadowIcon(props: IconProps) {
   return (
     <svg {...base(props)} aria-hidden="true">
@@ -312,15 +283,6 @@ export function ImageIcon(props: IconProps) {
       <rect x="3" y="3" width="18" height="18" rx="1" />
       <circle cx="9" cy="9" r="2" />
       <path d="m21 15-4.5-4.5L7 20" />
-    </svg>
-  )
-}
-
-export function GradientIcon(props: IconProps) {
-  return (
-    <svg {...base(props)} aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="1" />
-      <path d="M3 15 15 3M9 21 21 9" />
     </svg>
   )
 }

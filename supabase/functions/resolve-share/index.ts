@@ -58,11 +58,12 @@ Deno.serve(async (req) => {
     .eq("project_id", share.project_id)
     .single();
 
-  // Load content forms — only forms that have been sent to client
+  // Load content forms — only content-kind forms that have been sent to client
   const { data: formsData } = await supabase
     .from("content_forms")
     .select("id, kind, name, sections, sent, sent_at")
     .eq("project_id", share.project_id)
+    .eq("kind", "content")
     .eq("sent", true);
 
   // Load mockups

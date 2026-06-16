@@ -19,7 +19,7 @@ import {
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
 
-type AssetCategory = 'branding' | 'image' | 'video' | 'file'
+type AssetCategory = 'branding' | 'image' | 'video' | 'file' | 'logo' | 'icon'
 
 type Asset = {
   id: string

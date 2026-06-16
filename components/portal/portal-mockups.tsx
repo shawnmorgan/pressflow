@@ -1,7 +1,6 @@
 'use client'
 
-import { type ClientProject } from '@/lib/client-portal'
-import { useMockups, type Mockup } from '@/lib/mockups'
+import { type ClientProject, type PortalMockup } from '@/lib/client-portal'
 import {
   CommentThread,
   FieldLabel,
@@ -24,7 +23,7 @@ export function PortalMockups({
   approvals: Record<string, boolean>
   onApprove: (mockupId: string) => void
 }) {
-  const mockups = useMockups()
+  const mockups = project.mockups
   const pageNameOf = (pageId: string | null) =>
     pageId ? project.pages.find((p) => p.id === pageId)?.name ?? null : null
   const approvedCount = mockups.filter((m) => approvals[m.id]).length
@@ -79,7 +78,7 @@ function MockupReview({
   approved,
   onApprove,
 }: {
-  mockup: Mockup
+  mockup: PortalMockup
   domain: string
   pageName: string | null
   comments: PortalComment[]
@@ -107,20 +106,17 @@ function MockupReview({
             </span>
           )}
         </div>
-        {mockup.kind === 'image' ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={mockup.imageUrl || '/placeholder.svg'}
-            alt={`${mockup.name} mockup`}
-            className="max-h-[560px] w-full object-cover object-top"
-          />
-        ) : (
+        {mockup.html ? (
           <iframe
             title={`${mockup.name} preview`}
             srcDoc={mockup.html}
             sandbox=""
             className="h-[520px] w-full bg-white"
           />
+        ) : (
+          <div className="flex h-[320px] items-center justify-center bg-muted/30 text-[13px] text-muted-foreground">
+            Mockup preview not available
+          </div>
         )}
       </div>
 

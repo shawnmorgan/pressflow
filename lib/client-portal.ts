@@ -6,6 +6,7 @@ import {
   type DesignSystem,
 } from '@/lib/design-system'
 import { type FormSection } from '@/lib/content-forms'
+import { type MockupKind } from '@/lib/mockups'
 import { invokeEdgeFunction } from '@/lib/edge-functions'
 
 /* =========================================================================
@@ -79,6 +80,16 @@ export type PortalPermissions = {
   canEditContent: boolean
 }
 
+/** A mockup as seen by the portal client. */
+export type PortalMockup = {
+  id: string
+  name: string
+  kind: MockupKind
+  pageId: string | null
+  html?: string
+  createdAt: number
+}
+
 export type ClientProject = {
   token: string
   agency: AgencyBrand
@@ -97,6 +108,8 @@ export type ClientProject = {
   ds: DesignSystem
   /** Free-form content forms (the new model). */
   forms: PortalForm[]
+  /** Mockups shared with the client. */
+  mockups: PortalMockup[]
 }
 
 /* ---------- Default agency brand (fallback) ---------- */
@@ -141,19 +154,30 @@ export async function resolveClientProject(
     contactEmail: data.agency?.contactEmail ?? DEFAULT_AGENCY.contactEmail,
   }
 
-  const forms: PortalForm[] = (data.forms ?? []).map((f: any) => ({
-    id: f.id,
-    kind: f.kind ?? 'content',
-    name: f.name ?? 'Untitled',
-    sections: f.sections ?? [],
-    sent: true,
-  }))
+  const forms: PortalForm[] = (data.forms ?? [])
+    .map((f: any) => ({
+      id: f.id,
+      kind: f.kind ?? 'content',
+      name: f.name ?? 'Untitled',
+      sections: f.sections ?? [],
+      sent: true,
+    }))
+    .filter((f: PortalForm) => f.sections.length > 0)
 
   const permissions: PortalPermissions = {
     visibleViews: data.share?.visibleViews ?? [],
     canComment: data.share?.canComment ?? false,
     canEditContent: data.share?.canEditContent ?? false,
   }
+
+  const mockups: PortalMockup[] = (data.mockups ?? []).map((m: any) => ({
+    id: m.id,
+    name: m.name ?? 'Untitled',
+    kind: (m.kind as MockupKind) ?? 'html',
+    pageId: m.page_id ?? null,
+    html: m.html ?? undefined,
+    createdAt: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+  }))
 
   return {
     token: data.token,
@@ -169,5 +193,6 @@ export async function resolveClientProject(
     pages,
     ds,
     forms,
+    mockups,
   }
 }
