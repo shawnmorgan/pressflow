@@ -59,7 +59,7 @@ export function BuildView({ pages, setPages, ds }: Props) {
 
   const addPage = (parentId: string | null) => {
     const n = pages.filter((p) => p.parentId === parentId).length + 1
-    const id = `pg-${Math.random().toString(36).slice(2, 8)}`
+    const id = crypto.randomUUID()
     const parent = parentId ? pages.find((p) => p.id === parentId) : null
     const slug = parent
       ? `${parent.slug.replace(/\/$/, '')}/page-${n}`
@@ -171,7 +171,7 @@ export function BuildView({ pages, setPages, ds }: Props) {
     const target = pages.find((p) => p.id === activePageId)
     if (!target) {
       // No pages exist — create a new page with the imported sections
-      const id = `pg-${Math.random().toString(36).slice(2, 8)}`
+      const id = crypto.randomUUID()
       setPages(() => [
         { id, name: 'Home', slug: '/', parentId: null, sections },
       ])

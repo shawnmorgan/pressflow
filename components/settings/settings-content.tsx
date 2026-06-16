@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Check, TypeIcon, Ruler, Layers, Upload, Trash } from '@/components/icons'
 import { supabase } from '@/lib/supabase'
 
@@ -47,6 +47,25 @@ export function SettingsContent({ projectId }: { projectId?: string }) {
     return () => { cancelled = true }
   }, [projectId])
 
+  // Debounced save — mirrors project-view.tsx pattern
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const save = useCallback(
+    (patch: Record<string, unknown>) => {
+      if (!projectId) return
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
+        supabase
+          .from('projects')
+          .update({ ...patch, updated_at: new Date().toISOString() })
+          .eq('id', projectId)
+          .then()
+      }, 800)
+    },
+    [projectId],
+  )
+
+  const handleProjectName = (v: string) => { setProjectName(v); save({ name: v }) }
+
   const [baseFont, setBaseFont] = useState(16)
   const [ratio, setRatio] = useState(1.25)
   const [spacingUnit, setSpacingUnit] = useState(4)
@@ -70,7 +89,7 @@ export function SettingsContent({ projectId }: { projectId?: string }) {
             <FieldLabel>Project name</FieldLabel>
             <input
               value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
+              onChange={(e) => handleProjectName(e.target.value)}
               className="w-full rounded-sm border border-input bg-background px-2.5 py-2 text-[13px] text-foreground outline-none focus:border-primary"
             />
           </label>

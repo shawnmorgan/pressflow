@@ -139,24 +139,49 @@ function WorkspaceInner({ projectId }: { projectId: string }) {
     }, 800)
   }, [ds, projectId, loading, showToast])
 
-  // Debounced persist for pages
+  // Debounced persist for pages — full sync (insert/update/delete)
   const pagesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pagesLoadedRef = useRef(false)
+  const dbPageIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!pagesLoadedRef.current) {
-      if (!loading) pagesLoadedRef.current = true
+      if (!loading) {
+        pagesLoadedRef.current = true
+        dbPageIdsRef.current = new Set(pages.map((p) => p.id))
+      }
       return
     }
     if (pagesTimerRef.current) clearTimeout(pagesTimerRef.current)
     pagesTimerRef.current = setTimeout(async () => {
-      for (const p of pages) {
-        await supabase
-          .from('pages')
-          .update({ sections: p.sections as unknown as Record<string, unknown>[], updated_at: new Date().toISOString() })
-          .eq('id', p.id)
-          .eq('project_id', projectId)
+      const now = new Date().toISOString()
+      const currentIds = new Set(pages.map((p) => p.id))
+      const prevIds = dbPageIdsRef.current
+
+      // Delete removed pages
+      const deleted = [...prevIds].filter((id) => !currentIds.has(id))
+      if (deleted.length > 0) {
+        await supabase.from('pages').delete().in('id', deleted)
       }
+
+      // Upsert all current pages (handles both new and updated)
+      if (pages.length > 0) {
+        await supabase.from('pages').upsert(
+          pages.map((p, i) => ({
+            id: p.id,
+            project_id: projectId,
+            name: p.name,
+            slug: p.slug,
+            parent_id: p.parentId,
+            position: i,
+            sections: p.sections as unknown as Record<string, unknown>[],
+            updated_at: now,
+          })),
+          { onConflict: 'id' },
+        )
+      }
+
+      dbPageIdsRef.current = currentIds
       showToast('Saved')
     }, 800)
   }, [pages, projectId, loading, showToast])
