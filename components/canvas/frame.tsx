@@ -21,7 +21,6 @@ export function Frame({
   children,
   onTitleClick,
   active = false,
-  disableDrag = false,
 }: {
   title: string
   frameId?: string
@@ -31,8 +30,6 @@ export function Frame({
   children: ReactNode
   onTitleClick?: () => void
   active?: boolean
-  /** When true, the titlebar is not a drag handle (used inside TreeLayout). */
-  disableDrag?: boolean
 }) {
   const id = frameId ?? title
   const positions = useFramePositions()
@@ -57,7 +54,6 @@ export function Frame({
 
   const onHeaderDown = useCallback(
     (e: React.MouseEvent) => {
-      if (disableDrag) return
       if (e.button !== 0) return
       const target = e.target as HTMLElement
       if (target.closest('button, a, input, select, textarea')) return
@@ -72,7 +68,7 @@ export function Frame({
       movedRef.current = false
       setDragging(true)
     },
-    [offset, disableDrag],
+    [offset],
   )
 
   useEffect(() => {
@@ -108,7 +104,7 @@ export function Frame({
     if (!movedRef.current && onTitleClick) onTitleClick()
   }
 
-  const hasOffset = !disableDrag && (offset.x !== 0 || offset.y !== 0)
+  const hasOffset = offset.x !== 0 || offset.y !== 0
 
   return (
     <div
@@ -125,7 +121,7 @@ export function Frame({
       <div
         data-frame-header
         className={`flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2 ${
-          disableDrag ? 'cursor-default' : dragging ? 'cursor-grabbing' : 'cursor-grab'
+          dragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
         onMouseDown={onHeaderDown}
       >

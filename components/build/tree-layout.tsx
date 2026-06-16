@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { Plus, GripVertical } from '@/components/icons'
+import { useFramePositions } from '@/lib/frame-positions'
 
 export type TreeItem = { id: string; parentId: string | null }
 
@@ -19,6 +20,8 @@ type Props = {
   vGap?: number
   /** Estimated node height used before a node is measured. */
   estimatedHeight?: number
+  /** Maps item id to the frameId used in Frame component. */
+  frameIdForItem?: (id: string) => string
   /** Renders the frame. `handle` is a drag grip that arms reparent dragging. */
   renderNode: (id: string, handle: ReactNode) => ReactNode
   onAddChild: (parentId: string) => void
@@ -32,8 +35,11 @@ type Pos = { x: number; y: number }
 /**
  * Lays out page frames as a left-to-right tidy tree: each parent is centered
  * left of its children, connected by cubic bezier links. Heights are measured
- * per node so variable-height frames stack correctly. Frames can be dragged
- * onto one another to reparent, or onto the background to become a root.
+ * per node so variable-height frames stack correctly.
+ *
+ * Frames can be freely dragged (via Frame's own drag system). Connectors and
+ * add-child buttons track the actual rendered position by reading Frame offsets
+ * from FramePositionsProvider.
  */
 export function TreeLayout({
   items,
@@ -41,6 +47,7 @@ export function TreeLayout({
   hGap = 96,
   vGap = 40,
   estimatedHeight = 420,
+  frameIdForItem,
   renderNode,
   onAddChild,
   onAddRoot,
@@ -51,6 +58,9 @@ export function TreeLayout({
   const [dropId, setDropId] = useState<string | null | undefined>(undefined)
   const [armedId, setArmedId] = useState<string | null>(null)
   const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const positions = useFramePositions()
+  // Force re-render when frames move so connectors update
+  const [, setTick] = useState(0)
 
   // Measure node heights after layout; reflow when they change.
   useLayoutEffect(() => {
@@ -73,8 +83,13 @@ export function TreeLayout({
   const childrenOf = (id: string | null) =>
     items.filter((n) => n.parentId === id)
 
+  // Get the frame drag offset for an item
+  const getOffset = (id: string): Pos => {
+    const fid = frameIdForItem ? frameIdForItem(id) : id
+    return positions.get(fid)
+  }
+
   // ---- Left-to-right tidy tree layout ----
-  // "subtreeHeight" = total vertical space needed for this node's subtree
   const subtreeHeightCache = new Map<string, number>()
   const subtreeHeight = (id: string): number => {
     if (subtreeHeightCache.has(id)) return subtreeHeightCache.get(id)!
@@ -90,14 +105,12 @@ export function TreeLayout({
     return h
   }
 
-  const pos: Record<string, Pos> = {}
+  // Base positions from tree algorithm (before frame drag offsets)
+  const basePos: Record<string, Pos> = {}
 
-  // Place nodes left-to-right: parent at (leftX, topY centered in subtree),
-  // children stacked vertically to the right.
   const place = (id: string, leftX: number, topY: number) => {
     const h = subtreeHeight(id)
-    // Center node vertically within its subtree space
-    pos[id] = { x: leftX, y: topY + (h - heightOf(id)) / 2 }
+    basePos[id] = { x: leftX, y: topY + (h - heightOf(id)) / 2 }
     const kids = childrenOf(id)
     if (!kids.length) return
     const childrenTotal =
@@ -111,7 +124,6 @@ export function TreeLayout({
     }
   }
 
-  // Lay out root nodes stacked vertically
   const roots = childrenOf(null)
   let rootY = 0
   for (const r of roots) {
@@ -119,18 +131,31 @@ export function TreeLayout({
     rootY += subtreeHeight(r.id) + vGap
   }
 
-  // Bounding box of the whole tree.
+  // Actual rendered positions = base + frame drag offset
+  const actualPos = (id: string): Pos => {
+    const bp = basePos[id]
+    if (!bp) return { x: 0, y: 0 }
+    const off = getOffset(id)
+    return { x: bp.x + off.x, y: bp.y + off.y }
+  }
+
+  // Bounding box
   let maxRight = nodeWidth
   let maxBottom = estimatedHeight
   for (const it of items) {
-    const p = pos[it.id]
-    if (!p) continue
-    maxRight = Math.max(maxRight, p.x + nodeWidth)
-    maxBottom = Math.max(maxBottom, p.y + heightOf(it.id))
+    const ap = actualPos(it.id)
+    maxRight = Math.max(maxRight, ap.x + nodeWidth)
+    maxBottom = Math.max(maxBottom, ap.y + heightOf(it.id))
   }
-  const padRight = 80
+  // Also account for base positions for the add-root button
+  for (const it of items) {
+    const bp = basePos[it.id]
+    if (!bp) continue
+    maxRight = Math.max(maxRight, bp.x + nodeWidth)
+    maxBottom = Math.max(maxBottom, bp.y + heightOf(it.id))
+  }
+  const padRight = 120
 
-  // Is `candidate` inside the subtree rooted at `rootId`? (cycle guard)
   const isDescendant = (rootId: string, candidate: string): boolean => {
     if (rootId === candidate) return true
     return childrenOf(rootId).some((k) => isDescendant(k.id, candidate))
@@ -145,66 +170,57 @@ export function TreeLayout({
     return items.find((i) => i.id === dragId)?.parentId !== targetId
   }
 
-  // Connection anchor dots on every node: left, right, bottom
+  // Connection anchor dots on every node using ACTUAL positions
   const dotColor = 'color-mix(in srgb, var(--foreground) 25%, transparent)'
   const dotColorActive = 'color-mix(in srgb, var(--foreground) 45%, transparent)'
   const anchorDots: ReactNode[] = []
-  const hasChildren = new Set<string>()
-  const hasParent = new Set<string>()
+  const hasChildrenSet = new Set<string>()
+  const hasParentSet = new Set<string>()
   for (const it of items) {
     if (it.parentId) {
-      hasParent.add(it.id)
-      hasChildren.add(it.parentId)
+      hasParentSet.add(it.id)
+      hasChildrenSet.add(it.parentId)
     }
   }
 
   for (const it of items) {
-    const p = pos[it.id]
-    if (!p) continue
+    const ap = actualPos(it.id)
     const h = heightOf(it.id)
-    // Left anchor (entry point)
     anchorDots.push(
       <circle
         key={`anchor-l-${it.id}`}
-        cx={p.x}
-        cy={p.y + h / 2}
-        r={hasParent.has(it.id) ? 4 : 3}
-        fill={hasParent.has(it.id) ? dotColorActive : dotColor}
+        cx={ap.x}
+        cy={ap.y + h / 2}
+        r={hasParentSet.has(it.id) ? 4 : 3}
+        fill={hasParentSet.has(it.id) ? dotColorActive : dotColor}
       />,
-    )
-    // Right anchor (exit to children)
-    anchorDots.push(
       <circle
         key={`anchor-r-${it.id}`}
-        cx={p.x + nodeWidth}
-        cy={p.y + h / 2}
-        r={hasChildren.has(it.id) ? 4 : 3}
-        fill={hasChildren.has(it.id) ? dotColorActive : dotColor}
+        cx={ap.x + nodeWidth}
+        cy={ap.y + h / 2}
+        r={hasChildrenSet.has(it.id) ? 4 : 3}
+        fill={hasChildrenSet.has(it.id) ? dotColorActive : dotColor}
       />,
-    )
-    // Bottom anchor
-    anchorDots.push(
       <circle
         key={`anchor-b-${it.id}`}
-        cx={p.x + nodeWidth / 2}
-        cy={p.y + h}
+        cx={ap.x + nodeWidth / 2}
+        cy={ap.y + h}
         r={3}
         fill={dotColor}
       />,
     )
   }
 
-  // Connectors: horizontal bezier curves from parent right-center to child left-center
+  // Connectors using ACTUAL positions
   const connectors: ReactNode[] = []
   for (const it of items) {
     if (it.parentId === null) continue
-    const c = pos[it.id]
-    const p = pos[it.parentId]
-    if (!c || !p) continue
-    const startX = p.x + nodeWidth
-    const startY = p.y + heightOf(it.parentId) / 2
-    const endX = c.x
-    const endY = c.y + heightOf(it.id) / 2
+    const cPos = actualPos(it.id)
+    const pPos = actualPos(it.parentId)
+    const startX = pPos.x + nodeWidth
+    const startY = pPos.y + heightOf(it.parentId) / 2
+    const endX = cPos.x
+    const endY = cPos.y + heightOf(it.id) / 2
     const midX = startX + (endX - startX) / 2
     connectors.push(
       <path
@@ -216,6 +232,9 @@ export function TreeLayout({
       />,
     )
   }
+
+  // Listen for frame moves to re-render connectors
+  const onFrameMove = () => setTick((n) => n + 1)
 
   return (
     <div
@@ -234,6 +253,7 @@ export function TreeLayout({
         setDragId(null)
         setDropId(undefined)
       }}
+      onMouseMove={onFrameMove}
     >
       <div
         className="relative"
@@ -249,10 +269,11 @@ export function TreeLayout({
           {anchorDots}
         </svg>
 
-        {/* Nodes */}
+        {/* Nodes — positioned at BASE positions; Frame applies its own drag offset via transform */}
         {items.map((it) => {
-          const p = pos[it.id]
-          if (!p) return null
+          const bp = basePos[it.id]
+          if (!bp) return null
+          const ap = actualPos(it.id)
           const isDropTarget = dropId === it.id && canDrop(it.id)
           const handle = (
             <button
@@ -283,7 +304,7 @@ export function TreeLayout({
                 setDropId(undefined)
               }}
               className="absolute"
-              style={{ left: p.x, top: p.y, width: nodeWidth }}
+              style={{ left: bp.x, top: bp.y, width: nodeWidth }}
               onDragOver={(e) => {
                 if (canDrop(it.id)) {
                   e.preventDefault()
@@ -311,17 +332,28 @@ export function TreeLayout({
 
               {renderNode(it.id, handle)}
 
-              {/* Add-child affordance, centered on the right edge */}
-              <button
-                type="button"
-                onClick={() => onAddChild(it.id)}
-                aria-label="Add child page"
-                title="Add child page"
-                className="absolute top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
-                style={{ left: nodeWidth + 12 }}
+              {/* Add-child affordance — positioned using actual offset so it follows the frame */}
+              <div
+                className="pointer-events-auto absolute top-0 left-0"
+                style={{
+                  width: 0,
+                  height: 0,
+                }}
               >
-                <Plus className="size-4" />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onAddChild(it.id)}
+                  aria-label="Add child page"
+                  title="Add child page"
+                  className="absolute z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
+                  style={{
+                    left: nodeWidth + 12,
+                    top: heightOf(it.id) / 2,
+                  }}
+                >
+                  <Plus className="size-4" />
+                </button>
+              </div>
             </div>
           )
         })}

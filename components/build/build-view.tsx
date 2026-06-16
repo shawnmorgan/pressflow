@@ -281,6 +281,7 @@ export function BuildView({ pages, setPages, ds }: Props) {
         <TreeLayout
           items={pages.map((p) => ({ id: p.id, parentId: p.parentId }))}
           nodeWidth={FRAME_WIDTH}
+          frameIdForItem={(id) => `page-${id}`}
           onAddChild={(parentId) => addPage(parentId)}
           onAddRoot={() => addPage(null)}
           onReparent={reparentPage}
@@ -294,7 +295,6 @@ export function BuildView({ pages, setPages, ds }: Props) {
                 frameId={`page-${page.id}`}
                 width={FRAME_WIDTH}
                 active={isActive}
-                disableDrag
                 onTitleClick={() => {
                   setActivePageId(page.id)
                   setSelectedSectionId(null)
