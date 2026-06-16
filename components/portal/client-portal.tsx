@@ -13,7 +13,8 @@ import {
 import { type PortalComment } from '@/components/portal/portal-ui'
 import { PortalOverview } from '@/components/portal/portal-overview'
 import { PortalStyleGuide } from '@/components/portal/portal-style-guide'
-import { PortalContent, type ContentStatus } from '@/components/portal/portal-content'
+import { PortalContent } from '@/components/portal/portal-content'
+import { type SectionStatus } from '@/lib/content-forms'
 import { PortalWireframe } from '@/components/portal/portal-wireframe'
 import { PortalMockups } from '@/components/portal/portal-mockups'
 import { PortalAssets } from '@/components/portal/portal-assets'
@@ -44,7 +45,7 @@ export function ClientPortal({ project }: { project: ClientProject }) {
   const [contentValues, setContentValues] = useState<
     Record<string, Record<string, string>>
   >({})
-  const [contentStatuses, setContentStatuses] = useState<Record<string, ContentStatus>>({})
+  const [contentStatuses, setSectionStatuses] = useState<Record<string, SectionStatus>>({})
 
   // Comments (wireframe + mockups) keyed by target id
   const [comments, setComments] = useState<Record<string, PortalComment[]>>({})
@@ -143,10 +144,10 @@ export function ClientPortal({ project }: { project: ClientProject }) {
                 }))
               }
               onSubmitSection={(sectionId) =>
-                setContentStatuses((prev) => ({ ...prev, [sectionId]: 'submitted' }))
+                setSectionStatuses((prev) => ({ ...prev, [sectionId]: 'submitted' }))
               }
               onReopenSection={(sectionId) =>
-                setContentStatuses((prev) => ({ ...prev, [sectionId]: 'outstanding' }))
+                setSectionStatuses((prev) => ({ ...prev, [sectionId]: 'outstanding' }))
               }
             />
           )}

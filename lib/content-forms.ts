@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { insertRow, deleteRow } from '@/lib/persistence'
 
 /* =========================================================================
  * Content forms — free-form, Content-Snare-style question sets.
@@ -405,17 +406,13 @@ export async function createForm(
   emit()
 
   // Persist
-  const { data } = await supabase
-    .from('content_forms')
-    .insert({
-      project_id: projectId,
-      kind: 'content',
-      name: form.name,
-      sections: sections as unknown as Record<string, unknown>[],
-      sent: false,
-    })
-    .select('id')
-    .single()
+  const { data } = await insertRow('content_forms', {
+    project_id: projectId,
+    kind: 'content',
+    name: form.name,
+    sections: sections as unknown as Record<string, unknown>[],
+    sent: false,
+  })
 
   if (data) {
     // Update local id to DB id
@@ -431,7 +428,7 @@ export async function createForm(
 export async function deleteForm(formId: string) {
   forms = forms.filter((f) => f.id !== formId)
   emit()
-  await supabase.from('content_forms').delete().eq('id', formId)
+  await deleteRow('content_forms', formId)
 }
 
 function mutateForm(formId: string, fn: (form: ContentForm) => ContentForm) {
@@ -564,16 +561,12 @@ export async function saveAsTemplate(formId: string, name: string, accountId?: s
   }
 
   if (accountId) {
-    const { data } = await supabase
-      .from('form_templates')
-      .insert({
-        account_id: accountId,
-        name: tpl.name,
-        description: tpl.description,
-        sections: sections as unknown as Record<string, unknown>[],
-      })
-      .select('id')
-      .single()
+    const { data } = await insertRow('form_templates', {
+      account_id: accountId,
+      name: tpl.name,
+      description: tpl.description,
+      sections: sections as unknown as Record<string, unknown>[],
+    })
     if (data) {
       tpl.id = data.id
     }
@@ -586,7 +579,7 @@ export async function saveAsTemplate(formId: string, name: string, accountId?: s
 export async function removeCustomTemplate(id: string) {
   customTemplates = customTemplates.filter((t) => t.id !== id)
   emit()
-  await supabase.from('form_templates').delete().eq('id', id)
+  await deleteRow('form_templates', id)
 }
 
 /* ---------- hooks ---------- */

@@ -19,6 +19,7 @@ import {
   X,
 } from '@/components/icons'
 import { supabase } from '@/lib/supabase'
+import { insertRow, deleteRow } from '@/lib/persistence'
 
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
   <span className="text-[10px] font-semibold uppercase tracking-wider text-[#646970]">
@@ -302,16 +303,13 @@ export function ProjectView({ projectId }: { projectId: string }) {
     if (!wpUrl.trim()) return
     setWpSaving(true)
     const label = wpUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
-    const { data } = await supabase
-      .from('connections')
-      .insert({
-        account_id: (await supabase.from('projects').select('account_id').eq('id', projectId).single()).data?.account_id,
-        kind: 'wordpress-project',
-        label,
-        config: { url: wpUrl.trim(), project_id: projectId },
-      })
-      .select('id')
-      .single()
+    const acct = (await supabase.from('projects').select('account_id').eq('id', projectId).single()).data?.account_id
+    const { data } = await insertRow('connections', {
+      account_id: acct,
+      kind: 'wordpress-project',
+      label,
+      config: { url: wpUrl.trim(), project_id: projectId },
+    })
     if (data) setWpConn({ id: data.id, label, url: wpUrl.trim() })
     setWpSaving(false)
     setWpUrl('')
@@ -319,7 +317,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
 
   const disconnectWp = async () => {
     if (!wpConn) return
-    await supabase.from('connections').delete().eq('id', wpConn.id)
+    await deleteRow('connections', wpConn.id)
     setWpConn(null)
   }
 
@@ -354,11 +352,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
     if (!token) {
       token = crypto.randomUUID()
       const visible = Object.entries(shareViews).filter(([, v]) => v).map(([k]) => k)
-      const { data } = await supabase
-        .from('shares')
-        .insert({ project_id: projectId, token, visible_views: visible, can_comment: allowComments })
-        .select('id')
-        .single()
+      const { data } = await insertRow('shares', { project_id: projectId, token, visible_views: visible, can_comment: allowComments })
       if (data) { setShareToken(token); setShareId(data.id) }
     }
     if (!token) return

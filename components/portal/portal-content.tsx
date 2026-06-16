@@ -2,11 +2,9 @@
 
 import { useState } from 'react'
 import { type ClientProject, type PortalForm } from '@/lib/client-portal'
-import { type FormSection, type FormField, type FieldType } from '@/lib/content-forms'
+import { type FormSection, type FormField, type FieldType, type SectionStatus } from '@/lib/content-forms'
 import { FieldLabel, SectionIntro, StatusPill } from '@/components/portal/portal-ui'
 import { Check, ChevronDown, ChevronRight, Pencil } from '@/components/icons'
-
-export type ContentStatus = 'outstanding' | 'submitted'
 
 export function PortalContent({
   project,
@@ -18,7 +16,7 @@ export function PortalContent({
 }: {
   project: ClientProject
   values: Record<string, Record<string, string>>
-  statuses: Record<string, ContentStatus>
+  statuses: Record<string, SectionStatus>
   onFieldChange: (sectionId: string, key: string, value: string) => void
   onSubmitSection: (sectionId: string) => void
   onReopenSection: (sectionId: string) => void
@@ -89,7 +87,7 @@ function FormSectionCard({
   onReopen,
 }: {
   section: FormSection
-  status: ContentStatus
+  status: SectionStatus
   values: Record<string, string>
   onFieldChange: (key: string, value: string) => void
   onSubmit: () => void

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Sparkles, Hash, Mail, Copy, Check, Bell } from '@/components/icons'
 import { supabase } from '@/lib/supabase'
+import { insertRow, deleteRow } from '@/lib/persistence'
 import { useAuth } from '@/lib/auth-context'
 
 type Status = 'connected' | 'disconnected'
@@ -127,11 +128,7 @@ export function ConnectionsContent() {
     if (aiDbId) {
       await supabase.from('connections').update({ config }).eq('id', aiDbId)
     } else {
-      const { data } = await supabase
-        .from('connections')
-        .insert({ account_id: accountId, kind: 'ai', label: 'AI Provider', config })
-        .select('id')
-        .single()
+      const { data } = await insertRow('connections', { account_id: accountId, kind: 'ai', label: 'AI Provider', config })
       if (data) setAiDbId(data.id)
     }
     setAiStatus('connected')
@@ -141,7 +138,7 @@ export function ConnectionsContent() {
   const disconnectAi = async () => {
     if (!aiDbId) return
     setAiSaving(true)
-    await supabase.from('connections').delete().eq('id', aiDbId)
+    await deleteRow('connections', aiDbId)
     setAiDbId(null)
     setAiStatus('disconnected')
     setApiKey('')
@@ -155,11 +152,7 @@ export function ConnectionsContent() {
     if (slackDbId) {
       await supabase.from('connections').update({ config }).eq('id', slackDbId)
     } else {
-      const { data } = await supabase
-        .from('connections')
-        .insert({ account_id: accountId, kind: 'slack', label: 'Slack', config })
-        .select('id')
-        .single()
+      const { data } = await insertRow('connections', { account_id: accountId, kind: 'slack', label: 'Slack', config })
       if (data) setSlackDbId(data.id)
     }
     setSlackEnabled(true)
@@ -169,7 +162,7 @@ export function ConnectionsContent() {
   const disableSlack = async () => {
     if (!slackDbId) return
     setNotifSaving('slack')
-    await supabase.from('connections').delete().eq('id', slackDbId)
+    await deleteRow('connections', slackDbId)
     setSlackDbId(null)
     setSlackEnabled(false)
     setSlackWebhook('')
@@ -183,11 +176,7 @@ export function ConnectionsContent() {
     if (emailDbId) {
       await supabase.from('connections').update({ config }).eq('id', emailDbId)
     } else {
-      const { data } = await supabase
-        .from('connections')
-        .insert({ account_id: accountId, kind: 'email-notif', label: 'Email', config })
-        .select('id')
-        .single()
+      const { data } = await insertRow('connections', { account_id: accountId, kind: 'email-notif', label: 'Email', config })
       if (data) setEmailDbId(data.id)
     }
     setEmailEnabled(true)
@@ -197,7 +186,7 @@ export function ConnectionsContent() {
   const disableEmail = async () => {
     if (!emailDbId) return
     setNotifSaving('email')
-    await supabase.from('connections').delete().eq('id', emailDbId)
+    await deleteRow('connections', emailDbId)
     setEmailDbId(null)
     setEmailEnabled(false)
     setEmailNotifs('')

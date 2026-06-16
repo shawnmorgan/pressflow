@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { X, Link, Check, Copy } from '@/components/icons'
 import { supabase } from '@/lib/supabase'
+import { insertRow } from '@/lib/persistence'
 
 type ShareKey = 'style' | 'content' | 'sitemap' | 'wireframe' | 'mockups'
 
@@ -113,16 +114,12 @@ export function ShareModal({ onClose, projectId }: { onClose: () => void; projec
       const visible = Object.entries(selected)
         .filter(([, v]) => v)
         .map(([k]) => k)
-      const { data } = await supabase
-        .from('shares')
-        .insert({
-          project_id: projectId,
-          token,
-          visible_views: visible,
-          can_comment: allowComments,
-        })
-        .select('id')
-        .single()
+      const { data } = await insertRow('shares', {
+        project_id: projectId,
+        token,
+        visible_views: visible,
+        can_comment: allowComments,
+      })
 
       if (data) {
         setShareToken(token)

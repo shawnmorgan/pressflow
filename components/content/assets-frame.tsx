@@ -17,6 +17,7 @@ import {
   X,
 } from '@/components/icons'
 import { supabase } from '@/lib/supabase'
+import { insertRow, deleteRow } from '@/lib/persistence'
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -137,7 +138,7 @@ function useAssets(projectId?: string) {
       }
 
       const cat = category ?? categoryFromFile(file)
-      await supabase.from('assets').insert({
+      await insertRow('assets', {
         project_id: projectId,
         kind: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'file',
         category: cat,
@@ -155,14 +156,14 @@ function useAssets(projectId?: string) {
 
   const removeAsset = async (asset: Asset) => {
     await supabase.storage.from('assets').remove([asset.original_path])
-    await supabase.from('assets').delete().eq('id', asset.id)
+    await deleteRow('assets', asset.id)
     setAssets((prev) => prev.filter((a) => a.id !== asset.id))
   }
 
   const removeAssets = async (toRemove: Asset[]) => {
     if (toRemove.length === 0) return
     await supabase.storage.from('assets').remove(toRemove.map((a) => a.original_path))
-    await supabase.from('assets').delete().in('id', toRemove.map((a) => a.id))
+    for (const a of toRemove) await deleteRow('assets', a.id)
     setAssets((prev) => {
       const ids = new Set(toRemove.map((a) => a.id))
       return prev.filter((a) => !ids.has(a.id))

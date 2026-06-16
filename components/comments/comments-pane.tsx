@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { X, MessageSquare, Check, Reply, Filter } from '@/components/icons'
 import { supabase } from '@/lib/supabase'
+import { insertRow } from '@/lib/persistence'
 import { useAuth } from '@/lib/auth-context'
 
 type DbComment = {
@@ -150,18 +151,14 @@ export function CommentsPane({ onClose, projectId }: { onClose: () => void; proj
     const text = draft.trim()
     if (!text || !user) return
 
-    const { data } = await supabase
-      .from('comments')
-      .insert({
-        project_id: projectId,
-        target_type: 'general',
-        target_id: 'general',
-        author_user_id: user.id,
-        body: text,
-        parent_id: parentId ?? null,
-      })
-      .select('id, created_at')
-      .single()
+    const { data } = await insertRow('comments', {
+      project_id: projectId,
+      target_type: 'general',
+      target_id: 'general',
+      author_user_id: user.id,
+      body: text,
+      parent_id: parentId ?? null,
+    })
 
     if (!data) return
 
