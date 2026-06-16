@@ -10,24 +10,25 @@ import { getSecretSupabase } from '@/lib/supabase-server'
  * Body: multipart/form-data with fields: token, file, category?, slot?
  */
 
-async function resolveProjectId(token: string) {
+async function resolveShare(token: string) {
   const sb = getSecretSupabase()
   const { data } = await sb
     .from('shares')
-    .select('project_id')
+    .select('project_id, participant_id')
     .eq('token', token)
     .eq('revoked', false)
     .limit(1)
     .maybeSingle()
-  return data?.project_id as string | null
+  return data as { project_id: string; participant_id: string | null } | null
 }
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
   if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 })
 
-  const projectId = await resolveProjectId(token)
-  if (!projectId) return NextResponse.json({ error: 'Invalid token' }, { status: 403 })
+  const share = await resolveShare(token)
+  if (!share) return NextResponse.json({ error: 'Invalid token' }, { status: 403 })
+  const projectId = share.project_id
 
   const sb = getSecretSupabase()
   const { data: assets } = await sb
@@ -70,8 +71,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing token or file' }, { status: 400 })
   }
 
-  const projectId = await resolveProjectId(token)
-  if (!projectId) return NextResponse.json({ error: 'Invalid token' }, { status: 403 })
+  const share = await resolveShare(token)
+  if (!share) return NextResponse.json({ error: 'Invalid token' }, { status: 403 })
+  const projectId = share.project_id
 
   const sb = getSecretSupabase()
   const ext = file.name.split('.').pop() ?? ''
@@ -100,6 +102,7 @@ export async function POST(req: NextRequest) {
     original_path: storagePath,
     mime: file.type,
     bytes: file.size,
+    uploaded_by: share.participant_id,
   }).select('id').single()
 
   if (error) {
