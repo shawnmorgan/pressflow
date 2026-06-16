@@ -1,9 +1,9 @@
 import {
   adminClient,
   validateToken,
-  corsHeaders,
   json,
   errorResponse,
+  methodGuard,
 } from "../_shared/validate-token.ts";
 
 /**
@@ -15,9 +15,8 @@ import {
  * This is the ONLY door for unauthenticated client reads.
  */
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  const guard = methodGuard(req);
+  if (guard) return guard;
 
   const { token } = await req.json();
   if (!token || typeof token !== "string") {

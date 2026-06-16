@@ -1,9 +1,9 @@
 import {
   adminClient,
   validateToken,
-  corsHeaders,
   json,
   errorResponse,
+  methodGuard,
 } from "../_shared/validate-token.ts";
 
 /**
@@ -14,9 +14,8 @@ import {
  * Validates token + can_comment permission.
  */
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  const guard = methodGuard(req);
+  if (guard) return guard;
 
   const payload = await req.json();
   const { token, targetType, targetId, body } = payload;

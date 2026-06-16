@@ -59,3 +59,17 @@ export function json(body: unknown, status = 200) {
 export function errorResponse(message: string, status = 400) {
   return json({ error: message }, status);
 }
+
+/**
+ * Guard: return a CORS preflight or 405 for non-POST methods.
+ * Returns null if the request is POST and should proceed.
+ */
+export function methodGuard(req: Request): Response | null {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+  if (req.method !== "POST") {
+    return errorResponse("Method not allowed", 405);
+  }
+  return null;
+}

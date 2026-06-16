@@ -1,9 +1,9 @@
 import {
   adminClient,
   validateToken,
-  corsHeaders,
   json,
   errorResponse,
+  methodGuard,
 } from "../_shared/validate-token.ts";
 
 /**
@@ -13,9 +13,8 @@ import {
  * Record an approval or change request, authored by the share's participant.
  */
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  const guard = methodGuard(req);
+  if (guard) return guard;
 
   const payload = await req.json();
   const { token, targetType, targetId, status, note } = payload;

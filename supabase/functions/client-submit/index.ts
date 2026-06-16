@@ -1,9 +1,9 @@
 import {
   adminClient,
   validateToken,
-  corsHeaders,
   json,
   errorResponse,
+  methodGuard,
 } from "../_shared/validate-token.ts";
 
 /**
@@ -14,9 +14,8 @@ import {
  * scopes the write to the token's project.
  */
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  const guard = methodGuard(req);
+  if (guard) return guard;
 
   const body = await req.json();
   const { token, formSectionId, values, status } = body;
